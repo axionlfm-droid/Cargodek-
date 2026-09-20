@@ -88,7 +88,7 @@ test.describe('CargoDek public smoke checks', () => {
     await expect(page.locator('#originLongitude')).toHaveAttribute('type', 'hidden');
     await expect(page.locator('#destinationLatitude')).toHaveAttribute('type', 'hidden');
     await expect(page.locator('#destinationLongitude')).toHaveAttribute('type', 'hidden');
-    await expect(page.locator('#loadPhotos')).toHaveAttribute('accept', /image\\/jpeg/);
+    await expect(page.locator('#loadPhotos')).toHaveAttribute('accept', /image\/jpeg/);
   });
 });
 
