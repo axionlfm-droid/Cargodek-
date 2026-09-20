@@ -241,7 +241,7 @@ const SUPABASE_URL='https://rmyswyzzotvznteyqyym.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJteXN3eXp6b3R2em50ZXlxeXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NzMyODgsImV4cCI6MjEwNDQ0OTI4OH0.-Q5dcRpCWrd0GxLFCL4WEkhKFmauy3alfcHs6Ok6hrA';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);const $=id=>document.getElementById(id);
 const getAppUrl=()=>{try{const u=new URL(window.location.href);u.hash='';u.search='';return u.toString()}catch(e){return null}};
-let currentUser=null,profile=null,company=null,roles=[],currentRole=null,loads=[],myLoads=[],connections=[],fuelListings=[],fuelRequirements=[],messages=[],subscription=null,trucks=[],appBooting=false;
+let currentUser=null,profile=null,company=null,roles=[],currentRole=null,loads=[],myLoads=[],connections=[],fuelListings=[],fuelRequirements=[],fuelEnquiries=[],fuelOffers=[],messages=[],subscription=null,trucks=[],appBooting=false;
 let isAdmin=false;
 const AFRICA_COUNTRIES=['Algeria','Angola','Benin','Botswana','Burkina Faso','Burundi','Cabo Verde','Cameroon','Central African Republic','Chad','Comoros','Democratic Republic of the Congo','Republic of the Congo','Côte d’Ivoire','Djibouti','Egypt','Equatorial Guinea','Eritrea','Eswatini','Ethiopia','Gabon','The Gambia','Ghana','Guinea','Guinea-Bissau','Kenya','Lesotho','Liberia','Libya','Madagascar','Malawi','Mali','Mauritania','Mauritius','Morocco','Mozambique','Namibia','Niger','Nigeria','Rwanda','São Tomé and Príncipe','Senegal','Seychelles','Sierra Leone','Somalia','South Africa','South Sudan','Sudan','Tanzania','Togo','Tunisia','Uganda','Zambia','Zimbabwe'];
 const roleLabels={shipper:'Shipper / Cargo Owner',freight_broker:'Freight Broker',transporter:'Transporter',fleet_hire:'Fleet Hire',fuel_supplier:'Wholesale Fuel Supplier',fuel_buyer:'Fuel Buyer',retail_fuel_supplier:'Retail Fuel Supplier',clearing_agent:'Clearing Agent',warehouse:'Warehouse / Storage',roadside_assistance:'Roadside Assistance',equipment_hire:'Equipment Hire',asset_sales:'Truck / Trailer / Equipment Sales',truck_stop:'Truck Stop'};
@@ -430,7 +430,7 @@ async function fetchConnections(){
  }
  connections=[...new Map(connections.map(x=>[x.id,x])).values()];
 }
-async function fetchFuel(){const r=await sb.from('fuel_listings').select('*').eq('status','active').order('created_at',{ascending:false});fuelListings=r.data||[]}
+async function fetchFuel(){const [lr,er,or]=await Promise.all([sb.from('fuel_listings').select('*').eq('status','active').order('created_at',{ascending:false}),sb.from('fuel_enquiries').select('*').order('created_at',{ascending:false}),sb.from('fuel_offers').select('*').order('created_at',{ascending:false})]);if(lr.error)console.error('Fuel listings:',lr.error);if(er.error)console.warn('Fuel enquiries:',er.error);if(or.error)console.warn('Fuel offers:',or.error);fuelListings=lr.data||[];fuelEnquiries=er.data||[];fuelOffers=or.data||[]}
 async function fetchRequirements(){const r=await sb.from('fuel_requirements').select('*').order('created_at',{ascending:false});fuelRequirements=r.data||[]}
 async function fetchMessages(){const r=await sb.from('messages').select('*').or(`sender_user_id.eq.${currentUser.id},recipient_user_id.eq.${currentUser.id}`).order('created_at',{ascending:false});messages=r.data||[]}
 async function fetchSubscription(){if(!company)return;const r=await sb.from('subscriptions').select('*').eq('company_id',company.id).order('created_at',{ascending:false}).limit(1).maybeSingle();subscription=r.data||null}
@@ -608,7 +608,42 @@ function fuelTab(tab){
   $('fuelReqForm').onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(e.target).entries());const r=await sb.from('fuel_requirements').insert({...o,buyer_company_id:company.id,buyer_user_id:currentUser.id,quantity:Number(o.quantity),status:'active'});if(r.error)return alert(r.error.message);alert('Fuel requirement published.');await refresh();fuelTab('requirements')};
   return;
  }
- box.innerHTML=`<div class="fuel-grid">${fuelListings.map(f=>`<div class="fuel-card"><span class="badge green">${esc(f.product)}</span><h3>${esc(f.location||'')}</h3><div class="small">${esc(f.quantity)} ${esc(f.quantity_unit||'')} • ${money(f.price,f.currency)}</div><p>${esc(f.grade_spec||'')}</p>${roleHas('fuel_buyer')&&f.supplier_company_id!==company?.id?`<button class="btn primary" onclick="openFuelEnquiry('${f.id}')">Enquire</button>`:''}</div>`).join('')||'<div class="empty">No active fuel listings.</div>'}</div>`;
+ box.innerHTML=`<div class="fuel-grid">${fuelListings.map(f=>`<div class="fuel-card"><span class="badge green">${esc(f.product)}</span><h3>${esc(f.location||'')}</h3><div class="small">${esc(f.quantity)} ${esc(f.quantity_unit||'')} • ${money(f.price,f.currency)}</div><p>${esc(f.grade_spec||'')}</p>${roleHas('fuel_buyer')&&f.supplier_company_id!==company?.id?`<button class="btn primary" onclick="openFuelEnquiry('${f.id}')">Enquire</button>`:''}</div>`).join('')||'<div class="empty">No active fuel listings.</div>'}</div><div id="fuelTransactions" style="margin-top:14px"></div>`;renderFuelTransactions();;
+}
+
+function renderFuelTransactions(){
+ const box=$('fuelTransactions');if(!box)return;
+ const mine=(fuelEnquiries||[]).filter(e=>e.buyer_company_id===company?.id);
+ const supplierIds=new Set((fuelListings||[]).filter(f=>f.supplier_company_id===company?.id).map(f=>f.id));
+ const relevant=[...new Map([...mine,...(fuelEnquiries||[]).filter(e=>supplierIds.has(e.listing_id))].map(e=>[e.id,e])).values()];
+ if(!relevant.length){box.innerHTML='<div class="card"><div class="section-title">Fuel transactions</div><div class="empty">No fuel transactions yet.</div></div>';return}
+ box.innerHTML='<div class="card"><div class="section-title">Fuel transactions</div>'+relevant.map(e=>{
+  const listing=fuelListings.find(f=>f.id===e.listing_id), offers=(fuelOffers||[]).filter(o=>o.enquiry_id===e.id), accepted=offers.find(o=>o.status==='accepted'||o.status==='completed');
+  const buyer=e.buyer_company_id===company?.id, supplier=listing?.supplier_company_id===company?.id;
+  const offerHtml=offers.map(o=>'<div class="row"><span><b>'+money(o.price,o.currency)+'</b> · '+esc(o.quantity)+' '+esc(listing?.quantity_unit||'')+'<br><span class="small">'+esc(o.payment_terms||'No payment terms')+' · '+esc(o.delivery_terms||'No delivery terms')+'</span></span><span><span class="badge '+(o.status==='accepted'||o.status==='completed'?'green':o.status==='rejected'||o.status==='declined'?'red':'gold')+'">'+esc(o.status)+'</span>'+(buyer&&o.status==='pending'?' <button class="btn successBtn" onclick="acceptFuelOffer(\''+o.id+'\')">Accept</button>':'')+'</span></div>').join('');
+  const actions=(supplier&&e.status==='pending'?' <button class="btn primary" onclick="openFuelOffer(\''+e.id+'\')">Make Offer</button>':'')+(accepted&&e.status==='accepted'&&(buyer||supplier)?' <button class="btn successBtn" onclick="completeFuelTransaction(\''+e.id+'\')">Mark Completed</button>':'');
+  return '<div class="card" style="margin:10px 0"><div class="row"><div><b>'+esc(listing?.product||'Fuel transaction')+'</b><div class="small">'+esc(listing?.location||'')+' · Requested '+esc(e.quantity)+' '+esc(listing?.quantity_unit||'')+'</div></div><span class="badge '+(e.status==='completed'||e.status==='accepted'?'green':'gold')+'">'+esc(e.status)+'</span></div><p class="small">'+esc(e.message||'No enquiry message.')+'</p>'+(offerHtml||'<div class="small">No supplier offers yet.</div>')+'<div style="margin-top:8px">'+actions+'</div></div>';
+ }).join('')+'</div>';
+}
+function openFuelOffer(enquiryId){
+ const e=fuelEnquiries.find(x=>x.id===enquiryId),listing=e&&fuelListings.find(x=>x.id===e.listing_id);
+ if(!e||!listing||listing.supplier_company_id!==company?.id)return alert('Only the supplier for this listing can make an offer.');
+ openModal('Make fuel offer','<p><b>'+esc(listing.product)+'</b> · Buyer requested '+esc(e.quantity)+' '+esc(listing.quantity_unit||'')+'</p><div class="form-grid"><div class="field"><label>Price</label><input id="offerPrice" type="number" step="0.0001" min="0.000001"></div><div class="field"><label>Currency</label><input id="offerCurrency" value="'+esc(listing.currency||'USD')+'" maxlength="8"></div><div class="field"><label>Quantity</label><input id="offerQty" type="number" step="0.01" min="0.000001" max="'+esc(e.quantity)+'" value="'+esc(e.quantity)+'"></div><div class="field"><label>Payment terms</label><input id="offerPayment"></div><div class="field full"><label>Delivery terms</label><input id="offerDelivery"></div><div class="field full"><label>Message</label><textarea id="offerMessage"></textarea></div></div><button class="btn primary" onclick="submitFuelOffer(\''+enquiryId+'\')">Submit Offer</button>');
+}
+async function submitFuelOffer(enquiryId){
+ const price=Number($('offerPrice')?.value||0),qty=Number($('offerQty')?.value||0),currency=($('offerCurrency')?.value||'').trim();
+ if(!Number.isFinite(price)||price<=0||!Number.isFinite(qty)||qty<=0||!currency)return alert('Enter valid price, quantity and currency.');
+ const r=await sb.rpc('cd_create_fuel_offer',{p_enquiry_id:enquiryId,p_price:price,p_currency:currency,p_quantity:qty,p_payment_terms:$('offerPayment')?.value.trim()||null,p_delivery_terms:$('offerDelivery')?.value.trim()||null,p_message:$('offerMessage')?.value.trim()||null});
+ if(r.error)return alert('Fuel offer failed: '+r.error.message);closeModal();alert('Offer submitted.');await refresh();
+}
+async function acceptFuelOffer(offerId){
+ await loadKyc();if(!window._kycVerified)return openBuyerKycGate();
+ const r=await sb.rpc('cd_accept_fuel_offer',{p_offer_id:offerId});if(r.error)return alert('Offer acceptance failed: '+r.error.message);
+ alert('Fuel offer accepted.');await refresh();
+}
+async function completeFuelTransaction(enquiryId){
+ const r=await sb.rpc('cd_complete_fuel_transaction',{p_enquiry_id:enquiryId});if(r.error)return alert('Fuel transaction completion failed: '+r.error.message);
+ alert('Fuel transaction marked completed.');await refresh();
 }
 function buyerKycOk(){return !!company&&company.verification_status!=='rejected'&&false?true:!!window._kycVerified}
 async function loadKyc(){if(!company||!roleHas('fuel_buyer'))return window._kycVerified=true;const r=await sb.from('fuel_buyer_kyc').select('status').eq('company_id',company.id).order('created_at',{ascending:false}).limit(1).maybeSingle();window._kycVerified=r.data?.status==='verified'}
@@ -762,7 +797,7 @@ async function loadFullPrices(){
  x.innerHTML=rows.length?`<div class="notice">Only timestamped provider/cache values are shown. Delayed data is not presented as live.</div><div class="table-wrap"><table class="table"><thead><tr><th>Country</th><th>Product</th><th>Price</th><th>Effective date</th><th>Source</th><th>Fetched</th></tr></thead><tbody>${rows.map(p=>`<tr><td>${esc(p.country||p.country_code||'')}</td><td>${esc(p.product)}</td><td><b>${money(p.price,p.currency)}</b></td><td>${esc(p.effective_date)}</td><td>${esc(p.source||'Unavailable')}</td><td>${p.fetched_at?esc(new Date(p.fetched_at).toLocaleString()):'Unavailable'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No verified fuel-price data is currently available.</div>';
 }
 
-window.renderPost=renderPost;window.acceptRequest=acceptRequest;window.completeRequest=completeRequest;window.cancelLoad=cancelLoad;window.openLoadRequest=openLoadRequest;window.sendLoadRequest=sendLoadRequest;window.openFuelEnquiry=openFuelEnquiry;window.sendFuelEnquiry=sendFuelEnquiry;window.openTruckModal=openTruckModal;window.saveTruck=saveTruck;window.submitVerification=submitVerification;window.openBuyerKycGate=openBuyerKycGate;window.submitBuyerKyc=submitBuyerKyc;window.markMessageRead=markMessageRead;window.addRoles=addRoles;window.finishOnboarding=finishOnboarding;window.closeModal=closeModal;window.openModal=openModal;window.openCompanyRoleModal=openCompanyRoleModal;window.signOut=signOut;window.showPage=showPage;window.fuelTab=fuelTab;window.requireCurrentTerms=requireCurrentTerms;window.getCurrentTerms=getCurrentTerms;window.openLoadCoordinatePicker=openLoadCoordinatePicker;
+window.renderPost=renderPost;window.acceptRequest=acceptRequest;window.completeRequest=completeRequest;window.cancelLoad=cancelLoad;window.openLoadRequest=openLoadRequest;window.sendLoadRequest=sendLoadRequest;window.openFuelEnquiry=openFuelEnquiry;window.sendFuelEnquiry=sendFuelEnquiry;window.openFuelOffer=openFuelOffer;window.submitFuelOffer=submitFuelOffer;window.acceptFuelOffer=acceptFuelOffer;window.completeFuelTransaction=completeFuelTransaction;window.openTruckModal=openTruckModal;window.saveTruck=saveTruck;window.submitVerification=submitVerification;window.openBuyerKycGate=openBuyerKycGate;window.submitBuyerKyc=submitBuyerKyc;window.markMessageRead=markMessageRead;window.addRoles=addRoles;window.finishOnboarding=finishOnboarding;window.closeModal=closeModal;window.openModal=openModal;window.openCompanyRoleModal=openCompanyRoleModal;window.signOut=signOut;window.showPage=showPage;window.fuelTab=fuelTab;window.requireCurrentTerms=requireCurrentTerms;window.getCurrentTerms=getCurrentTerms;window.openLoadCoordinatePicker=openLoadCoordinatePicker;
 sb.auth.onAuthStateChange((event,session)=>{if(session?.user){currentUser=session.user;if(event==='PASSWORD_RECOVERY'){$('authMsg').innerHTML='<div class="notice">Choose a new password to continue.</div>'}}else{currentUser=null;profile=null;company=null;roles=[];$('appView').classList.add('hidden');$('authView').classList.remove('hidden')}});
 (async()=>{setAuthMode('login');try{const hash=new URLSearchParams(window.location.hash.replace(/^#/,'?'));const ae=hash.get('error_description');if(ae){$('authMsg').innerHTML=`<div class=\"error\">${esc(decodeURIComponent(ae))}</div>`;history.replaceState({},document.title,window.location.pathname+window.location.search)}}catch(e){console.error('Auth callback parsing failed',e)}const r=await sb.auth.getSession();if(r.data.session){currentUser=r.data.session.user;await enterApp()}})();
 
