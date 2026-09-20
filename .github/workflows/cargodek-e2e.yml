@@ -1,0 +1,52 @@
+name: CargoDek E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'package.json'
+      - 'playwright.config.js'
+      - 'tests/e2e/**'
+      - '.github/workflows/cargodek-e2e.yml'
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'package.json'
+      - 'playwright.config.js'
+      - 'tests/e2e/**'
+      - '.github/workflows/cargodek-e2e.yml'
+
+jobs:
+  e2e:
+    if: ${{ github.event_name == 'workflow_dispatch' || secrets.CARGODEK_TEST_EMAIL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CARGODEK_TEST_EMAIL: ${{ secrets.CARGODEK_TEST_EMAIL }}
+      CARGODEK_TEST_PASSWORD: ${{ secrets.CARGODEK_TEST_PASSWORD }}
+      CARGODEK_BASE_URL: https://cargodek.vercel.app/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run CargoDek E2E tests
+        run: npx playwright test --project=chromium
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargodek-playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
