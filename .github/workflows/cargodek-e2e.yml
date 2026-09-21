@@ -35,14 +35,14 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Install Chromium
+      - name: Install Chromium browsers
         run: npx playwright install --with-deps chromium
       - name: Verify E2E credentials
         run: |
           test -n "$CARGODEK_TEST_EMAIL" || { echo "CARGODEK_TEST_EMAIL is not configured"; exit 1; }
           test -n "$CARGODEK_TEST_PASSWORD" || { echo "CARGODEK_TEST_PASSWORD is not configured"; exit 1; }
-      - name: Run CargoDek E2E tests
-        run: npx playwright test --project=chromium
+      - name: Run CargoDek desktop and mobile E2E tests
+        run: npx playwright test --project=chromium --project=mobile-chromium
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
