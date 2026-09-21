@@ -830,7 +830,7 @@ function renderMessages(){
      const cm=await sb.from('company_members').select('company_id').eq('user_id',recipient).eq('status','active').limit(1).maybeSingle();
      if(cm.error)return alert('Could not find recipient company: '+cm.error.message);
      if(!cm.data?.company_id)return alert('That user is not an active member of a CargoDek company.');
-     const r=await sb.rpc('cd_send_message',{p_recipient_user_id:recipient,p_body:body,p_load_id:null});
+     const r=await sb.rpc('cd_send_message',{p_recipient_user_id:recipient,p_body:body,p_load_id:null,p_sender_company_id:company.id,p_recipient_company_id:cm.data.company_id});
      if(r.error)return alert('Message could not be sent: '+r.error.message);
      e.target.reset();await fetchMessages();renderMessages();
    }
