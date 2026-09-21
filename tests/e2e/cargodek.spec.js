@@ -14,6 +14,8 @@ async function acceptTermsIfShown(page) {
 
 async function signIn(page) {
   const dialogMessages = [];
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
   page.on('dialog', async dialog => {
     dialogMessages.push(dialog.message());
     await dialog.dismiss();
@@ -36,8 +38,13 @@ async function signIn(page) {
   await expect.poll(async () => {
     const onboardingVisible = await page.locator('#obName').isVisible().catch(() => false);
     const sidebarVisible = await page.locator('#sidebar .nav').first().isVisible().catch(() => false);
-    return onboardingVisible || sidebarVisible;
+    const bootErrorVisible = await page.locator('#cdHealth .error').isVisible().catch(() => false);
+    return onboardingVisible || sidebarVisible || bootErrorVisible;
   }, { timeout: 30_000 }).toBe(true);
+  const bootError = page.locator('#cdHealth .error');
+  if (await bootError.isVisible().catch(() => false)) {
+    throw new Error('CargoDek boot failed: ' + await bootError.innerText() + (pageErrors.length ? ' | pageerror: ' + pageErrors.join(' | ') : ''));
+  }
   const onboarding = page.locator('#obName');
   if (await onboarding.isVisible().catch(() => false)) {
     const unique = 'CargoDek E2E Test ' + Date.now();
