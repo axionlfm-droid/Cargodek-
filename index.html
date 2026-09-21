@@ -567,7 +567,17 @@ function parseMapPin(value){
 }
 async function geocodeLoadLocation(raw,country){
  const value=String(raw||'').trim();if(!value)throw new Error('Enter an address or paste a map pin first.');
- const pin=parseMapPin(value);if(pin)return pin;
+ const pin=parseMapPin(value);
+ if(pin){
+   const reverseKey='reverse:'+pin.lat.toFixed(6)+','+pin.lon.toFixed(6);
+   const cached=cdReadGeoCache(reverseKey);if(cached)return cached;
+   const reverseUrl='https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&accept-language=en&lat='+encodeURIComponent(pin.lat)+'&lon='+encodeURIComponent(pin.lon);
+   const reverseRes=await fetch(reverseUrl,{headers:{Accept:'application/json'}});
+   if(!reverseRes.ok)throw new Error('Location service is temporarily unavailable.');
+   const reverse=await reverseRes.json();
+   const data={lat:pin.lat,lon:pin.lon,display:reverse.display_name||value,country:reverse.address?.country||'',countryCode:(reverse.address?.country_code||'').toLowerCase()};
+   cdWriteGeoCache(reverseKey,data);return data;
+ }
  const query=country&&country!=='Select country'?`${value}, ${country}`:value;
  const key=query.toLowerCase();
  const cached=cdReadGeoCache(key);if(cached)return cached;
