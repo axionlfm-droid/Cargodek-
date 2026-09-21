@@ -28,6 +28,11 @@ async function signIn(page) {
     throw new Error('CargoDek sign-in failed: ' + await error.innerText());
   }
   await acceptTermsIfShown(page);
+  await expect.poll(async () => {
+    const onboardingVisible = await page.locator('#obName').isVisible().catch(() => false);
+    const sidebarVisible = await page.locator('#sidebar').isVisible().catch(() => false);
+    return onboardingVisible || sidebarVisible;
+  }, { timeout: 30_000 }).toBe(true);
   const onboarding = page.locator('#obName');
   if (await onboarding.isVisible().catch(() => false)) {
     const unique = 'CargoDek E2E Test ' + Date.now();
