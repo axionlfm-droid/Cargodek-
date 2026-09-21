@@ -475,7 +475,7 @@ async function finishOnboarding(){
  const id=created.data;
  if(!id)return alert('Company creation returned no company ID.');
  for(const role of selected){
-   const rr=await sb.rpc('cd_set_company_role',{p_company_id:id,p_role:role,p_active:true});
+   const rr=await sb.rpc('cd_set_company_role',{p_company_id:id,p_role:role,p_enabled:true});
    if(rr.error)return alert('Company was created, but role setup failed for '+role+': '+rr.error.message);
  }
  localStorage.removeItem('cd_pending_onboarding');
@@ -832,7 +832,7 @@ function renderCompany(){
 }
 
 function openCompanyRoleModal(){openModal('Add business role',`<div class="role-grid">${Object.entries(roleLabels).filter(([r])=>!roles.includes(r)).map(([r,l])=>`<label class="role-option"><input type="checkbox" name="newRole" value="${r}">${esc(l)}</label>`).join('')}</div><button class="btn primary" onclick="addRoles()">Add Selected Roles</button>`)}
-async function addRoles(){for(const x of document.querySelectorAll('input[name="newRole"]:checked')){const r=await sb.rpc('cd_set_company_role',{p_company_id:company.id,p_role:x.value,p_active:true});if(r.error)return alert(r.error.message)}closeModal();await loadContext();renderShell();renderCompany()}
+async function addRoles(){for(const x of document.querySelectorAll('input[name="newRole"]:checked')){const r=await sb.rpc('cd_set_company_role',{p_company_id:company.id,p_role:x.value,p_enabled:true});if(r.error)return alert(r.error.message)}closeModal();await loadContext();renderShell();renderCompany()}
 
 function safeFile(file,required=false){
  if(!file){if(required)throw new Error('Required document is missing.');return null}
