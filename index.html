@@ -557,9 +557,7 @@ async function cdRoadRoute(loadId){
     cdSelectedRouteLayer.bindPopup(cdMapPopup('Likely road route',`${esc(x.row.origin||'Pickup')} → ${esc(x.row.destination||'Destination')}<br><span class="small">${km} km · approx. ${mins} min driving</span>`));
     window.cdDashMap.fitBounds(cdSelectedRouteLayer.getBounds(),{padding:[45,45],maxZoom:10});
   }catch(e){
-    const fallback=L.polyline([[o.lat,o.lon],[d.lat,d.lon]],{color:'#94a3b8',weight:2,dashArray:'5 7',opacity:.45}).addTo(window.cdDashMap);
-    cdSelectedRouteLayer=fallback;
-    fallback.bindPopup(cdMapPopup('Route unavailable','The road-routing service did not return a route. Destination is shown, but no straight-line route is presented as a driving route.','Routing temporarily unavailable'));
+    if(cdSelectedDestinationMarker){try{cdSelectedDestinationMarker.bindPopup(cdMapPopup('Destination',`${esc(x.row.destination||'Destination')}<br><span class="small">Destination shown without a route because the road-routing service is temporarily unavailable.</span>`)}catch(ignore){}}
   }
 }
 
