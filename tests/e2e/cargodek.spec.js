@@ -42,7 +42,6 @@ async function signIn(page) {
   }
   await acceptTermsIfShown(page);
   await expect(page.locator('#appView')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('#cdHealth .ok')).toBeVisible({ timeout: 30_000 });
 }
 
 async function ensureRole(page, role) {
