@@ -28,7 +28,7 @@ async function signIn(page) {
     throw new Error('CargoDek sign-in failed: ' + await error.innerText());
   }
   await acceptTermsIfShown(page);
-  const onboarding = page.getByText('Complete company onboarding', { exact: true });
+  const onboarding = page.locator('#obName');
   if (await onboarding.isVisible().catch(() => false)) {
     const unique = 'CargoDek E2E Test ' + Date.now();
     await page.locator('#obName').fill(unique);
