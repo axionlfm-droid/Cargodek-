@@ -465,10 +465,10 @@ async function finishOnboarding(){
    p_trading_name:name,
    p_registration_number:reg,
    p_country:country,
-   p_phone:profile?.phone||undefined,
-   p_email:currentUser.email||undefined,
-   p_address:undefined,
-   p_website:undefined
+   p_phone:profile?.phone||null,
+   p_email:currentUser.email||null,
+   p_address:null,
+   p_website:null
  };
  const created=await sb.rpc('cd_create_company',companyArgs);
  if(created.error)return alert('Company creation failed: '+created.error.message);
