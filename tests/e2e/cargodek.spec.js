@@ -34,6 +34,13 @@ async function signIn(page) {
   if (await error.isVisible().catch(() => false)) {
     throw new Error('CargoDek sign-in failed: ' + await error.innerText());
   }
+  await expect.poll(async () => {
+    const termsVisible = await page.locator('#acceptCurrentTermsBtn').isVisible().catch(() => false);
+    const onboardingVisible = await page.locator('#obName').isVisible().catch(() => false);
+    const sidebarVisible = await page.locator('#sidebar .nav').first().isVisible().catch(() => false);
+    const bootErrorVisible = await page.locator('#cdHealth .error').isVisible().catch(() => false);
+    return termsVisible || onboardingVisible || sidebarVisible || bootErrorVisible;
+  }, { timeout: 30_000 }).toBe(true);
   await acceptTermsIfShown(page);
   await expect.poll(async () => {
     const onboardingVisible = await page.locator('#obName').isVisible().catch(() => false);
