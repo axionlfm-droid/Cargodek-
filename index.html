@@ -532,7 +532,74 @@ function mapPointLabel(p){return p?.estimated?'Approximate city/country position
 function newsThumb(n){const c=String(n?.category||'').toLowerCase();if(n?.image_url)return n.image_url;if(c.includes('fuel')||c.includes('energy'))return'https://images.unsplash.com/photo-1625047509248-ec889cbff17f?auto=format&fit=crop&w=600&q=75';if(c.includes('mining'))return'https://images.unsplash.com/photo-1513828583688-c52646db42da?auto=format&fit=crop&w=600&q=75';if(c.includes('port')||c.includes('corridor'))return'https://images.unsplash.com/photo-1494412651409-8963ce7935a7?auto=format&fit=crop&w=600&q=75';if(c.includes('border')||c.includes('customs'))return'https://images.unsplash.com/photo-1556075798-4825dfaaf498?auto=format&fit=crop&w=600&q=75';if(c.includes('manufact'))return'https://images.unsplash.com/photo-1565793298595-6a879b1d9492?auto=format&fit=crop&w=600&q=75';return'https://images.unsplash.com/photo-1509395176047-4a66953fd231?auto=format&fit=crop&w=600&q=75'}
 function newsThumbMarkup(n){const c=String(n?.category||'LOGISTICS');const icon=c.toLowerCase().includes('fuel')?'⛽':c.toLowerCase().includes('mining')?'⛏':c.toLowerCase().includes('border')?'🛂':c.toLowerCase().includes('port')?'⚓':'🚚';const fallback='data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="360"><defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#071b35"/><stop offset="1" stop-color="#1769e0"/></linearGradient></defs><rect width="600" height="360" fill="url(#g)"/><text x="300" y="190" text-anchor="middle" font-size="96">${icon}</text><text x="300" y="315" text-anchor="middle" fill="white" font-family="Arial" font-size="28" font-weight="700">CARGODEK INTELLIGENCE</text></svg>`);return`<div class="cd-news-img"><img src="${esc(newsThumb(n))}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${fallback}'"></div>`}
 
-async function initDashboardMap(){const el=$('cdDashMap');if(!el)return;if(typeof L==='undefined'){el.innerHTML='<div class="empty" style="padding:40px;text-align:center">Loading map engine…</div>';setTimeout(initDashboardMap,250);return}if(window.cdDashMap){try{if(window.cdDashMap.getContainer()!==el){window.cdDashMap.remove();window.cdDashMap=null}else{setTimeout(()=>window.cdDashMap.invalidateSize(),100);return}}catch(e){window.cdDashMap=null}}window.cdDashMap=L.map(el,{zoomControl:false,preferCanvas:true}).setView([-20,27],4.2);L.control.zoom({position:'bottomright'}).addTo(window.cdDashMap);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors'}).addTo(window.cdDashMap);const bounds=[];const groups={load:L.layerGroup().addTo(window.cdDashMap),fuel:L.layerGroup().addTo(window.cdDashMap),service:L.layerGroup().addTo(window.cdDashMap),facility:L.layerGroup().addTo(window.cdDashMap)};const add=(lat,lon,html,kind)=>{if(!validCoord(lat,lon))return;const color={load:'#16a56b',fuel:'#1769e0',service:'#7c3aed',facility:'#f59e0b'}[kind]||'#1769e0';L.circleMarker([+lat,+lon],{radius:8,weight:2,color:'#fff',fillColor:color,fillOpacity:.9}).bindPopup(html).addTo(groups[kind]||groups.service);bounds.push([+lat,+lon])};['Johannesburg','Durban','Maputo','Beira','Harare','Gaborone','Lusaka','Lubumbashi','Kasumbalesa','Blantyre','Windhoek'].forEach(city=>{const q=resolveMapPoint(null,null,city,'');if(q)L.circleMarker([q.lat,q.lon],{radius:4,weight:1,color:'#9fb4c9',fillColor:'#9fb4c9',fillOpacity:.7}).bindTooltip(city,{direction:'top'}).addTo(groups.facility)});const lr=await sb.from('cargodek_public_loads_map').select('*').order('created_at',{ascending:false}).limit(500);if(!lr.error)for(const x of lr.data||[]){const o=resolveMapPoint(x.origin_latitude,x.origin_longitude,x.origin,x.origin_country),d=resolveMapPoint(x.destination_latitude,x.destination_longitude,x.destination,x.destination_country),h=`<b>${esc(x.commodity||'Load')}</b><br>${esc(x.origin||'')} → ${esc(x.destination||'')}<br><span class="small">${esc(x.load_type||'')} • ${esc(x.status||'open')} • Public listing</span>`;if(o)add(o.lat,o.lon,h+`<br><span class="small">Pickup · ${mapPointLabel(o)}</span>`,'load');if(d)add(d.lat,d.lon,h+`<br><span class="small">Destination · ${mapPointLabel(d)}</span>`,'load');if(o&&d)L.polyline([[o.lat,o.lon],[d.lat,d.lon]],{color:'#16a56b',weight:3,dashArray:o.estimated||d.estimated?'7 7':null,opacity:.7}).addTo(groups.load)}const [sr,tr,fr,mr,fl]=await Promise.all([sb.from('cd_service_listings').select('*').eq('status','active').limit(500),sb.from('cd_truck_stops').select('*').eq('status','active').limit(500),sb.from('cd_fuel_stations').select('*').eq('status','active').limit(500),sb.from('cd_map_locations').select('*').eq('status','active').limit(500),sb.from('fuel_listings').select('id,product,location,country,status').eq('status','active').limit(500)]);for(const x of fl.data||[]){const q=resolveMapPoint(null,null,x.location,x.country);if(q)add(q.lat,q.lon,`<b>${esc(x.product||'Fuel offer')}</b><br>${esc(x.location||'')}, ${esc(x.country||'')}<br><span class="small">Fuel marketplace · User listing · ${mapPointLabel(q)}</span>`,'fuel')}for(const x of sr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q)add(q.lat,q.lon,`<b>${esc(x.title||'Service')}</b><br>${esc(x.city||'')}, ${esc(x.country||'')}<br><span class="small">Service · User listing · ${mapPointLabel(q)}</span>`,'service')}for(const x of tr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q)add(q.lat,q.lon,`<b>${esc(x.name||'Truck Stop')}</b><br>${esc(x.city||'')}, ${esc(x.country||'')}<br><span class="small">Truck stop · User listing · ${mapPointLabel(q)}</span>`,'facility')}for(const x of fr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q)add(q.lat,q.lon,`<b>${esc(x.name||'Fuel Station')}</b><br>${esc(x.city||'')}, ${esc(x.country||'')}<br><span class="small">Retail fuel · ${x.verified?'Verified':'Unverified'} · ${mapPointLabel(q)}</span>`,'fuel')}for(const x of mr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);const k=x.layer_key==='fuel'?'fuel':x.layer_key==='truckstops'||x.layer_key==='warehouses'?'facility':x.layer_key==='loads'?'load':'service';if(q)add(q.lat,q.lon,`<b>${esc(x.name||x.location_type||'CargoDek location')}</b><br>${esc(x.city||'')}, ${esc(x.country||'')}<br><span class="small">${esc(x.location_type||k)} · User listing · ${mapPointLabel(q)}</span>`,k)}if(bounds.length)window.cdDashMap.fitBounds(bounds,{padding:[35,35],maxZoom:7});setTimeout(()=>window.cdDashMap&&window.cdDashMap.invalidateSize(),200)}
+let cdSelectedLoadId=null,cdSelectedRouteLayer=null,cdSelectedDestinationMarker=null,cdMapLoadIndex={};
+
+async function cdRoadRoute(loadId){
+  const x=cdMapLoadIndex[loadId];
+  if(!x||!x.o||!x.d||!window.cdDashMap)return;
+  if(cdSelectedRouteLayer){try{window.cdDashMap.removeLayer(cdSelectedRouteLayer)}catch(e){}}
+  if(cdSelectedDestinationMarker){try{window.cdDashMap.removeLayer(cdSelectedDestinationMarker)}catch(e){}}
+  cdSelectedLoadId=loadId;
+  const o=x.o,d=x.d;
+  const color='#16a56b';
+  const destinationIcon=L.divIcon({className:'cd-destination-pin',html:'<div style="width:18px;height:18px;border-radius:50%;background:#ef4444;border:3px solid #fff;box-shadow:0 2px 8px #0005"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+  cdSelectedDestinationMarker=L.marker([d.lat,d.lon],{icon:destinationIcon,zIndexOffset:900}).bindPopup(cdMapPopup('Destination',`${esc(x.row.destination||'Destination')}<br><span class="small">Route destination for <b>${esc(x.row.commodity||'load')}</b></span>`)).addTo(window.cdDashMap);
+  cdSelectedDestinationMarker.openPopup();
+  try{
+    const url=`https://router.project-osrm.org/route/v1/driving/${o.lon},${o.lat};${d.lon},${d.lat}?overview=full&geometries=geojson&steps=false`;
+    const r=await fetch(url,{headers:{'Accept':'application/json'}});
+    const j=await r.json();
+    if(!r.ok||j.code!=='Ok'||!j.routes?.[0]?.geometry?.coordinates?.length)throw new Error('No road route returned');
+    const coords=j.routes[0].geometry.coordinates.map(p=>[p[1],p[0]]);
+    cdSelectedRouteLayer=L.geoJSON(j.routes[0].geometry,{style:{color,weight:5,opacity:.82}}).addTo(window.cdDashMap);
+    const km=(Number(j.routes[0].distance||0)/1000).toFixed(0);
+    const mins=Math.round(Number(j.routes[0].duration||0)/60);
+    cdSelectedRouteLayer.bindPopup(cdMapPopup('Likely road route',`${esc(x.row.origin||'Pickup')} → ${esc(x.row.destination||'Destination')}<br><span class="small">${km} km · approx. ${mins} min driving</span>`));
+    window.cdDashMap.fitBounds(cdSelectedRouteLayer.getBounds(),{padding:[45,45],maxZoom:10});
+  }catch(e){
+    const fallback=L.polyline([[o.lat,o.lon],[d.lat,d.lon]],{color:'#94a3b8',weight:2,dashArray:'5 7',opacity:.45}).addTo(window.cdDashMap);
+    cdSelectedRouteLayer=fallback;
+    fallback.bindPopup(cdMapPopup('Route unavailable','The road-routing service did not return a route. Destination is shown, but no straight-line route is presented as a driving route.','Routing temporarily unavailable'));
+  }
+}
+
+async function initDashboardMap(){
+ const el=$('cdDashMap');if(!el)return;
+ if(typeof L==='undefined'){el.innerHTML='<div class="empty" style="padding:40px;text-align:center">Loading map engine…</div>';setTimeout(initDashboardMap,250);return}
+ if(window.cdDashMap){try{if(window.cdDashMap.getContainer()!==el){window.cdDashMap.remove();window.cdDashMap=null}else{setTimeout(()=>window.cdDashMap.invalidateSize(),100);return}}catch(e){window.cdDashMap=null}}
+ window.cdDashMap=L.map(el,{zoomControl:false,preferCanvas:true}).setView([-20,27],4.2);
+ L.control.zoom({position:'bottomright'}).addTo(window.cdDashMap);
+ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors'}).addTo(window.cdDashMap);
+ const bounds=[]; cdMapLoadIndex={}; cdSelectedLoadId=null; cdSelectedRouteLayer=null; cdSelectedDestinationMarker=null;
+ const groups={load:L.layerGroup().addTo(window.cdDashMap),fuel:L.layerGroup().addTo(window.cdDashMap),service:L.layerGroup().addTo(window.cdDashMap),facility:L.layerGroup().addTo(window.cdDashMap)};
+ const add=(lat,lon,html,kind)=>{if(!validCoord(lat,lon))return;const color={load:'#16a56b',fuel:'#1769e0',service:'#7c3aed',facility:'#f59e0b'}[kind]||'#1769e0';return L.circleMarker([+lat,+lon],{radius:8,weight:2,color:'#fff',fillColor:color,fillOpacity:.9}).bindPopup(html).addTo(groups[kind]||groups.service)};
+ ['Johannesburg','Durban','Maputo','Beira','Harare','Gaborone','Lusaka','Lubumbashi','Kasumbalesa','Blantyre','Windhoek'].forEach(city=>{const q=resolveMapPoint(null,null,city,'');if(q)L.circleMarker([q.lat,q.lon],{radius:4,weight:1,color:'#9fb4c9',fillColor:'#9fb4c9',fillOpacity:.7}).bindTooltip(city,{direction:'top'}).addTo(groups.facility)});
+ const lr=await sb.from('cargodek_public_loads_map').select('*').order('created_at',{ascending:false}).limit(500);
+ if(!lr.error)for(const x of lr.data||[]){
+   const o=resolveMapPoint(x.origin_latitude,x.origin_longitude,x.origin,x.origin_country),d=resolveMapPoint(x.destination_latitude,x.destination_longitude,x.destination,x.destination_country);
+   const h=`<b>${esc(x.commodity||'Load')}</b><br>${esc(x.origin||'')} → ${esc(x.destination||'')}<br><span class="small">${esc(x.load_type||'')} • ${esc(x.status||'open')} • Public listing</span>`;
+   if(o){
+     const marker=add(o.lat,o.lon,h+`<br><span class="small">📍 Loading point · ${mapPointLabel(o)}</span><br><button class="btn primary" style="margin-top:7px;width:100%" onclick="cdRoadRoute('${esc(x.id)}')">Show destination & road route</button>`,'load');
+     if(marker)marker.on('popupopen',()=>{cdMapLoadIndex[x.id]={row:x,o,d}});
+     cdMapLoadIndex[x.id]={row:x,o,d};
+     bounds.push([o.lat,o.lon]);
+   }
+ }
+ const [sr,tr,fr,mr,fl]=await Promise.all([
+   sb.from('cd_service_listings').select('*').eq('status','active').limit(500),
+   sb.from('cd_truck_stops').select('*').eq('status','active').limit(500),
+   sb.from('cd_fuel_stations').select('*').eq('status','active').limit(500),
+   sb.from('cd_map_locations').select('*').eq('status','active').limit(500),
+   sb.from('fuel_listings').select('id,product,location,country,status').eq('status','active').limit(500)
+ ]);
+ for(const x of fl.data||[]){const q=resolveMapPoint(null,null,x.location,x.country);if(q)add(q.lat,q.lon,`<b>${esc(x.product||'Fuel offer')}</b><br>${esc(x.location||'')}, ${esc(x.country||'')}<br><span class="small">Fuel marketplace · User listing · ${mapPointLabel(q)}</span>`,'fuel')}
+ for(const x of sr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q)add(q.lat,q.lon,`<b>${esc(x.title||'Service')}</b><br>${esc(x.city||'')}, ${esc(x.country||'')}<br><span class="small">Service · User listing · ${mapPointLabel(q)}</span>`,'service')}
+ for(const x of tr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q)add(q.lat,q.lon,`<b>🚛 ${esc(x.name||'Truck Stop')}</b><br>${esc(x.city||'')}, ${esc(x.country||'')}<br><span class="small">Truck stop · ${x.has_fuel?'⛽ Fuel · ':''}${x.has_repair?'🔧 Repair · ':''}${x.has_parking?'🅿 Parking':''}</span>`,'facility')}
+ for(const x of fr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q)add(q.lat,q.lon,`<b>⛽ ${esc(x.name||'Fuel Station')}</b><br>${esc(x.city||'')}, ${esc(x.country||'')}<br><span class="small">${x.verified?'Verified':'Unverified'} · Retail fuel</span>`,'fuel')}
+ for(const x of mr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);const k=x.layer_key==='fuel'?'fuel':x.layer_key==='truckstops'||x.layer_key==='warehouses'?'facility':'service';if(q)add(q.lat,q.lon,`<b>${esc(x.name||x.location_type||'CargoDek location')}</b><br>${esc(x.city||'')}, ${esc(x.country||'')}<br><span class="small">${esc(x.location_type||k)} · User listing</span>`,k)}
+ if(bounds.length)window.cdDashMap.fitBounds(bounds,{padding:[35,35],maxZoom:7});
+ setTimeout(()=>window.cdDashMap&&window.cdDashMap.invalidateSize(),200)
+}
 function ownLoadIds(){return myLoads.map(l=>l.id)}
 function renderLoads(){
  const q=($('fSearch')?.value||'').toLowerCase(),o=($('fOrigin')?.value||'').toLowerCase(),d=($('fDestination')?.value||'').toLowerCase(),c=($('fCommodity')?.value||'').toLowerCase(),date=$('fDate')?.value||'';
