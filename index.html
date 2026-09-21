@@ -365,7 +365,9 @@ async function requireCurrentTerms(){
       const ins=await sb.rpc('cd_accept_current_terms');
       if(ins.error)throw ins.error;
       closeModal();
-      await enterApp();
+      await loadContext();
+      if(!company){openOnboarding();return}
+      await refresh();
     }catch(e){
       btn.disabled=false;
       alert('Terms acceptance could not be recorded. Please try again.');
