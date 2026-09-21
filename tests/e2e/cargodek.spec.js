@@ -30,7 +30,7 @@ async function signIn(page) {
   await acceptTermsIfShown(page);
   await expect.poll(async () => {
     const onboardingVisible = await page.locator('#obName').isVisible().catch(() => false);
-    const sidebarVisible = await page.locator('#sidebar').isVisible().catch(() => false);
+    const sidebarVisible = await page.locator('#sidebar .nav').first().isVisible().catch(() => false);
     return onboardingVisible || sidebarVisible;
   }, { timeout: 30_000 }).toBe(true);
   const onboarding = page.locator('#obName');
