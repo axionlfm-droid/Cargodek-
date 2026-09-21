@@ -13,6 +13,11 @@ async function acceptTermsIfShown(page) {
 }
 
 async function signIn(page) {
+  const dialogMessages = [];
+  page.on('dialog', async dialog => {
+    dialogMessages.push(dialog.message());
+    await dialog.dismiss();
+  });
   await page.goto('/');
   await expect(page.locator('#authView')).toBeVisible();
   await page.locator('#email').fill(email);
@@ -43,7 +48,11 @@ async function signIn(page) {
     await page.locator('input[name="obRole"][value="shipper"]').check();
     await page.locator('input[name="obRole"][value="transporter"]').check();
     await page.getByRole('button', { name: 'Create Company Profile' }).click();
-    await expect(page.locator('#modal')).not.toHaveClass(/show/, { timeout: 30_000 });
+    await expect.poll(async () => {
+      const modalHidden = !(await page.locator('#modal').isVisible().catch(() => false));
+      return modalHidden || dialogMessages.length > 0;
+    }, { timeout: 12_000 }).toBe(true);
+    if (dialogMessages.length) throw new Error('CargoDek onboarding failed: ' + dialogMessages.join(' | '));
   }
   await acceptTermsIfShown(page);
   await expect(page.locator('#appView')).toBeVisible({ timeout: 30_000 });
