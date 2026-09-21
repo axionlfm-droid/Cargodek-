@@ -9,6 +9,8 @@ on:
       - 'package.json'
       - 'playwright.config.js'
       - 'tests/e2e/**'
+      - 'supabase/migrations/**'
+      - 'supabase/tests/**'
       - '.github/workflows/cargodek-e2e.yml'
   pull_request:
     paths:
