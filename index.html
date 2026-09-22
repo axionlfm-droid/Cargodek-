@@ -1056,7 +1056,7 @@ function initMap(){
 }
 function toggleMapLayer(name,btn){if(!cdMapLayers[name])return;const on=btn.classList.toggle('active');if(on)cdMapLayers[name].addTo(cdMap);else cdMap.removeLayer(cdMapLayers[name]);}
 function cdMapMarkerOptions(category){const colors={load:'#E74C3C',fuel:'#2ECC71',warehouse:'#3498DB',truck_stop:'#F1C40F',equipment:'#9B59B6'};return{radius:8,fillColor:colors[category]||'#95A5A6',color:'#FFF',weight:1,opacity:1,fillOpacity:.85};}
-function cdMapCategory(layer){return layer==='loads'?'load':layer==='truckstops'?'truck_stop':layer==='warehouses'?'warehouse':layer==='fuel'?'fuel':'equipment'}
+function cdMapCategory(layer){return layer==='loads'?'load':layer==='truckstops'?'truck_stop':layer==='warehouses'?'warehouse':layer==='fuel'?'fuel':layer==='services'?'services':'equipment'}
 function cdMapPopup(title,body,meta){return `<div style="font-family:sans-serif;min-width:180px"><strong style="text-transform:uppercase">${esc(title||'CargoDek')}</strong><div style="margin:6px 0">${body}</div><small style="color:#667085">${meta||''}</small></div>`}
 let cdPublicMapLoadIndex={},cdPublicRouteLayer=null,cdPublicDestinationMarker=null;
 async function cdPublicRoadRoute(loadId){
@@ -1096,7 +1096,7 @@ async function loadMapData(){
  }
  for(const g of Object.values(groups)){
   const items=g.items;
-  const body=items.map(x=>'<div style="padding:7px 0;border-bottom:1px solid #e5e7eb"><b>'+esc(x.commodity||'Load')+'</b><br><small>'+esc(x.origin||'')+' → '+esc(x.destination||'')+' · '+esc(x.load_type||'')+'</small><br><button class="btn primary" style="margin-top:5px;width:100%" onclick="cdPublicRoadRoute(\\''+esc(x.id)+'\\')">Show destination & road route</button></div>').join('');
+  const body=items.map(x=>`<div style="padding:7px 0;border-bottom:1px solid #e5e7eb"><b>${esc(x.commodity||'Load')}</b><br><small>${esc(x.origin||'')} → ${esc(x.destination||'')} · ${esc(x.load_type||'')}</small><br><button class="btn primary" style="margin-top:5px;width:100%" onclick="cdPublicRoadRoute('${esc(x.id)}')">Show destination & road route</button></div>`).join('');
   add(g.o.lat,g.o.lon,cdMapPopup('Loading point',body,items.length+' public load'+(items.length===1?'':'s')+' at this pickup'),'loads');
  }
  const [sr,tr,fr,mr,fl]=await Promise.all([
