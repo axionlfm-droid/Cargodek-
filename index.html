@@ -234,7 +234,7 @@ aside .nav{color:#c6d4e4;padding:12px 14px;border-radius:10px;margin-bottom:5px}
 <section id="reports" class="page"><div class="hero"><div><h1>Reports</h1><p>Report suspicious, misleading or non-compliant marketplace activity.</p></div></div><div class="card"><form id="reportForm"><div class="form-grid"><div class="field"><label>User / company / listing reference</label><input id="reportUser" required placeholder="User, company or listing reference"></div><div class="field"><label>Reason</label><select id="reportReason"><option>Misrepresentation</option><option>Fraud concern</option><option>Spam</option><option>Harassment</option><option>Other</option></select></div><div class="field full"><label>Details</label><textarea id="reportDetails" required></textarea></div></div><button class="btn primary">Submit Report</button></form></div><div id="reportsContent" style="margin-top:14px"></div></section>
 <section id="news" class="page"><div class="hero"><div><h1>Logistics & Freight News</h1><p>Connected to the official Freight News and Logistics News sources. CargoDek links to the source articles rather than copying copyrighted content.</p></div><button class="btn secondary" onclick="loadFullNews()">Refresh</button></div><div class="source-grid"><div class="source-card"><h3>Freight News</h3><p class="small">Southern African freight, trade, logistics, road/rail, sea and air coverage.</p><a href="https://www.freightnews.co.za/" target="_blank" rel="noopener">Open Freight News ↗</a><div id="freightNewsHeadlines" class="news-list" style="margin-top:12px"></div></div><div class="source-card"><h3>Logistics News</h3><p class="small">Supply-chain, logistics, warehousing, fleet and industry coverage.</p><a href="https://www.logisticsnews.co.za/" target="_blank" rel="noopener">Open Logistics News ↗</a><div id="logisticsNewsHeadlines" class="news-list" style="margin-top:12px"></div></div></div><div id="fullNews" class="news-list card" style="margin-top:14px"></div></section>
 <section id="prices" class="page"><div class="hero"><div><h1>Fuel Prices</h1><p>Indicative market prices. Supplier listings remain the commercial source of truth.</p></div><button class="btn secondary" onclick="loadFullPrices()">Refresh</button></div><div id="fullPrices" class="card"></div></section>
-<section id="map" class="page"><div class="hero"><div><h1>Logistics Map</h1><p>Interactive operational map. Verified and unverified active user listings are displayed; pending or suspended records remain hidden.</p></div></div><div class="map-toolbar"><button class="map-toggle active" data-layer="loads" onclick="toggleMapLayer('loads',this)">◉ Loads</button><button class="map-toggle" data-layer="fuel" onclick="toggleMapLayer('fuel',this)">⛽ Fuel stations</button><button class="map-toggle" data-layer="truckstops" onclick="toggleMapLayer('truckstops',this)">▣ Truck stops</button><button class="map-toggle" data-layer="equipment" onclick="toggleMapLayer('equipment',this)">⚙ Equipment hire</button><button class="map-toggle" data-layer="warehouses" onclick="toggleMapLayer('warehouses',this)">▤ Warehouses</button></div><div id="mapContainer" class="map-shell"></div><div class="card" style="margin-top:12px"><div class="section-title">Map data integrity</div><div class="small">No marker is presented as a confirmed facility unless its location record exists. Missing route charges, tolls or facility data are shown as unavailable rather than estimated.</div></div></section>
+<section id="map" class="page"><div class="hero"><div><h1>Logistics Map</h1><p>Interactive operational map. Verified and unverified active user listings are displayed; pending or suspended records remain hidden.</p></div></div><div class="map-toolbar"><button class="map-toggle active" data-layer="loads" onclick="toggleMapLayer('loads',this)">◉ Loads</button><button class="map-toggle" data-layer="fuel" onclick="toggleMapLayer('fuel',this)">⛽ Fuel stations</button><button class="map-toggle" data-layer="truckstops" onclick="toggleMapLayer('truckstops',this)">▣ Truck stops</button><button class="map-toggle" data-layer="services" onclick="toggleMapLayer('services',this)">🛠 Services</button><button class="map-toggle" data-layer="equipment" onclick="toggleMapLayer('equipment',this)">⚙ Equipment / Fleet</button><button class="map-toggle" data-layer="warehouses" onclick="toggleMapLayer('warehouses',this)">▤ Warehouses</button></div><div id="mapContainer" class="map-shell"></div><div class="card" style="margin-top:12px"><div class="section-title">Map data integrity</div><div class="small">No marker is presented as a confirmed facility unless its location record exists. Missing route charges, tolls or facility data are shown as unavailable rather than estimated.</div></div></section>
 <section id="services" class="page"><div class="hero"><div><h1>Services Marketplace</h1><p>Equipment & Fleet Hire, clearing, warehousing, roadside assistance and asset sales.</p></div></div><div id="serviceContent" class="service-grid"></div></section>
 <section id="truckstops" class="page"><div class="hero"><div><h1>Truck Stops</h1><p>Permanent facility profiles with facility-specific information and photos.</p></div><button class="btn primary" onclick="openTruckStopModal()">+ Register Truck Stop</button></div><div id="truckStopContent" class="service-grid"></div></section>
 <section id="retailfuel" class="page"><div class="hero"><div><h1>Retail Fuel Network</h1><p>Fuel station locations and supplier-maintained prices with timestamps and freshness status.</p></div><button class="btn primary" onclick="openRetailFuelModal()">+ Add Fuel Station</button></div><div id="retailFuelContent" class="service-grid"></div></section>
@@ -1048,6 +1048,7 @@ function initMap(){
  cdMapLayers.truckstops=L.layerGroup();
  cdMapLayers.equipment=L.layerGroup();
  cdMapLayers.warehouses=L.layerGroup();
+ cdMapLayers.services=L.layerGroup();
  loadMapData();
  const resize=()=>{if(cdMap&&cdMap.getContainer()===el)cdMap.invalidateSize({pan:false})};
  setTimeout(resize,50);setTimeout(resize,250);setTimeout(resize,800);
@@ -1057,23 +1058,61 @@ function toggleMapLayer(name,btn){if(!cdMapLayers[name])return;const on=btn.clas
 function cdMapMarkerOptions(category){const colors={load:'#E74C3C',fuel:'#2ECC71',warehouse:'#3498DB',truck_stop:'#F1C40F',equipment:'#9B59B6'};return{radius:8,fillColor:colors[category]||'#95A5A6',color:'#FFF',weight:1,opacity:1,fillOpacity:.85};}
 function cdMapCategory(layer){return layer==='loads'?'load':layer==='truckstops'?'truck_stop':layer==='warehouses'?'warehouse':layer==='fuel'?'fuel':'equipment'}
 function cdMapPopup(title,body,meta){return `<div style="font-family:sans-serif;min-width:180px"><strong style="text-transform:uppercase">${esc(title||'CargoDek')}</strong><div style="margin:6px 0">${body}</div><small style="color:#667085">${meta||''}</small></div>`}
+let cdPublicMapLoadIndex={},cdPublicRouteLayer=null,cdPublicDestinationMarker=null;
+async function cdPublicRoadRoute(loadId){
+ const x=cdPublicMapLoadIndex[loadId];if(!x||!x.o||!x.d||!cdMap)return;
+ if(cdPublicRouteLayer){try{cdMap.removeLayer(cdPublicRouteLayer)}catch(e){}}
+ if(cdPublicDestinationMarker){try{cdMap.removeLayer(cdPublicDestinationMarker)}catch(e){}}
+ const o=x.o,d=x.d;
+ cdPublicDestinationMarker=L.marker([d.lat,d.lon],{zIndexOffset:900}).bindPopup(cdMapPopup('Destination',esc(x.row.destination||'Destination')+'<br><small>Route destination for <b>'+esc(x.row.commodity||'load')+'</b></small>')).addTo(cdMap);
+ try{
+  const url='https://router.project-osrm.org/route/v1/driving/'+o.lon+','+o.lat+';'+d.lon+','+d.lat+'?overview=full&geometries=geojson&steps=false';
+  const r=await fetch(url,{headers:{'Accept':'application/json'}}),j=await r.json();
+  if(!r.ok||j.code!=='Ok'||!j.routes?.[0]?.geometry?.coordinates?.length)throw new Error('No road route returned');
+  cdPublicRouteLayer=L.geoJSON(j.routes[0].geometry,{style:{color:'#16a56b',weight:5,opacity:.82}}).addTo(cdMap);
+  const km=(Number(j.routes[0].distance||0)/1000).toFixed(0),mins=Math.round(Number(j.routes[0].duration||0)/60);
+  cdPublicRouteLayer.bindPopup(cdMapPopup('Likely road route',esc(x.row.origin||'Pickup')+' → '+esc(x.row.destination||'Destination')+'<br><small>'+km+' km · approx. '+mins+' min driving</small>'));
+  cdMap.fitBounds(cdPublicRouteLayer.getBounds(),{padding:[45,45],maxZoom:10});
+ }catch(e){
+  cdPublicDestinationMarker.bindPopup(cdMapPopup('Destination',esc(x.row.destination||'Destination')+'<br><small>Destination shown without a route because the road-routing service is temporarily unavailable.</small>'));
+ }
+}
 async function loadMapData(){
  if(!cdMap)return;
  Object.values(cdMapLayers).forEach(g=>g&&g.clearLayers());
+ cdPublicMapLoadIndex={};cdPublicRouteLayer=null;cdPublicDestinationMarker=null;
  const bounds=[];
- const add=(lat,lon,html,layer)=>{if(!validCoord(lat,lon))return;const target=cdMapLayers[layer]||cdMapLayers.equipment;const marker=L.circleMarker([Number(lat),Number(lon)],cdMapMarkerOptions(cdMapCategory(layer))).bindPopup(html).addTo(target);bounds.push([Number(lat),Number(lon)]);return marker};
+ const add=(lat,lon,html,layer)=>{if(!validCoord(lat,lon))return;const target=cdMapLayers[layer]||cdMapLayers.services;const marker=L.circleMarker([Number(lat),Number(lon)],cdMapMarkerOptions(cdMapCategory(layer))).bindPopup(html).addTo(target);bounds.push([Number(lat),Number(lon)]);return marker};
  const hubs=['Johannesburg','Durban','Maputo','Beira','Harare','Gaborone','Lusaka','Lubumbashi','Kasumbalesa','Blantyre','Windhoek'];
  hubs.forEach(city=>{const q=resolveMapPoint(null,null,city,'');if(q)L.circleMarker([q.lat,q.lon],{radius:4,weight:1,color:'#9fb4c9',fillColor:'#9fb4c9',fillOpacity:.7}).bindTooltip(city,{direction:'top'}).addTo(cdMapLayers.loads)});
- const lr=await sb.from('cargodek_public_loads_map').select('*').order('created_at',{ascending:false}).limit(500);
- if(!lr.error)for(const x of lr.data||[]){const o=resolveMapPoint(x.origin_latitude,x.origin_longitude,x.origin,x.origin_country);const h=cdMapPopup('LOAD',`<b>${esc(x.commodity||'Load')}</b><br>Pickup: ${esc(x.origin||'')}`,`${esc(x.load_type||'')} · ${esc(x.status||'open')} · Public listing`);if(o)add(o.lat,o.lon,h+`<br><small>Pickup · ${mapPointLabel(o)}</small>`,'loads')}
- const [sr,tr,fr,mr,fl]=await Promise.all([sb.from('cd_service_listings').select('*').eq('status','active').limit(500),sb.from('cd_truck_stops').select('*').eq('status','active').limit(500),sb.from('cd_fuel_stations').select('*').eq('status','active').limit(500),sb.from('cd_map_locations').select('*').eq('status','active').limit(500),sb.from('fuel_listings').select('id,product,location,country,status').eq('status','active').limit(500)]);
- for(const x of fl.data||[]){const q=resolveMapPoint(null,null,x.location,x.country);if(q)add(q.lat,q.lon,cdMapPopup('FUEL',`<b>${esc(x.product||'Fuel offer')}</b><br>${esc(x.location||'')}, ${esc(x.country||'')}`,`Fuel marketplace · User listing · ${mapPointLabel(q)}`),'fuel')}
- for(const x of sr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q)add(q.lat,q.lon,cdMapPopup(x.service_type==='warehouse'?'WAREHOUSE':'SERVICE',`<b>${esc(x.title||'Service')}</b><br>${esc(x.city||'')}, ${esc(x.country||'')}`,`User listing · ${mapPointLabel(q)}`),x.service_type==='warehouse'?'warehouses':'equipment')}
- for(const x of tr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q)add(q.lat,q.lon,cdMapPopup('TRUCK STOP',`<b>${esc(x.name||'Truck Stop')}</b><br>${esc(x.city||'')}, ${esc(x.country||'')}`,`User listing · ${mapPointLabel(q)}`),'truckstops')}
- for(const x of fr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q)add(q.lat,q.lon,cdMapPopup('FUEL STATION',`<b>${esc(x.name||'Fuel Station')}</b><br>${esc(x.city||'')}, ${esc(x.country||'')}`,`Retail fuel · ${x.verified?'Verified':'Unverified'} · ${mapPointLabel(q)}`),'fuel')}
- for(const x of mr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(!q)continue;const k=x.layer_key==='fuel'?'fuel':x.layer_key==='truckstops'?'truckstops':x.layer_key==='warehouses'?'warehouses':x.layer_key==='equipment'?'equipment':'loads';add(q.lat,q.lon,cdMapPopup(x.name||x.location_type||'CARGO DEK',`<b>${esc(x.city||'')}, ${esc(x.country||'')}</b>`,` ${esc(x.location_type||k)} · User listing · ${mapPointLabel(q)}`),k)}
- if(bounds.length)cdMap.fitBounds(bounds,{padding:[30,30],maxZoom:8});
- setTimeout(()=>cdMap&&cdMap.invalidateSize(),150);
+ const lr=await sb.from('cargodek_public_loads_map').select('*').eq('status','open').order('created_at',{ascending:false}).limit(500);
+ const groups={};
+ for(const x of lr.data||[]){
+  const o=resolveMapPoint(x.origin_latitude,x.origin_longitude,x.origin,x.origin_country),d=resolveMapPoint(x.destination_latitude,x.destination_longitude,x.destination,x.destination_country);
+  if(!o)continue;
+  cdPublicMapLoadIndex[x.id]={row:x,o,d};
+  const key=o.lat.toFixed(5)+','+o.lon.toFixed(5);
+  (groups[key] ||= {o,items:[]}).items.push(x);
+ }
+ for(const g of Object.values(groups)){
+  const items=g.items;
+  const body=items.map(x=>'<div style="padding:7px 0;border-bottom:1px solid #e5e7eb"><b>'+esc(x.commodity||'Load')+'</b><br><small>'+esc(x.origin||'')+' → '+esc(x.destination||'')+' · '+esc(x.load_type||'')+'</small><br><button class="btn primary" style="margin-top:5px;width:100%" onclick="cdPublicRoadRoute(\\''+esc(x.id)+'\\')">Show destination & road route</button></div>').join('');
+  add(g.o.lat,g.o.lon,cdMapPopup('Loading point',body,items.length+' public load'+(items.length===1?'':'s')+' at this pickup'),'loads');
+ }
+ const [sr,tr,fr,mr,fl]=await Promise.all([
+  sb.from('cd_service_listings').select('*').eq('status','active').limit(500),
+  sb.from('cd_truck_stops').select('*').eq('status','active').limit(500),
+  sb.from('cd_fuel_stations').select('*').eq('status','active').limit(500),
+  sb.from('cd_map_locations').select('*').eq('status','active').limit(500),
+  sb.from('fuel_listings').select('id,product,location,country,status').eq('status','active').limit(500)
+ ]);
+ for(const x of fl.data||[]){const q=resolveMapPoint(null,null,x.location,x.country);if(q)add(q.lat,q.lon,'<b>'+esc(x.product||'Fuel offer')+'</b><br>'+esc(x.location||'')+', '+esc(x.country||'')+'<br><small>Fuel marketplace · '+mapPointLabel(q)+'</small>','fuel')}
+ for(const x of sr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q){const k=x.service_type==='warehouse'?'warehouses':(['equipment_hire','fleet_hire'].includes(x.service_type)?'equipment':'services');add(q.lat,q.lon,'<b>'+esc(x.title||'Service')+'</b><br>'+esc(x.city||'')+', '+esc(x.country||'')+'<br><small>'+esc(roleLabels[x.service_type]||x.service_type||'Service')+' · '+mapPointLabel(q)+'</small>',k)}}
+ for(const x of tr.data||[]){const q=resolveMapPoint(null,null,x.city,x.country);if(q)add(q.lat,q.lon,'<b>🚛 '+esc(x.name||'Truck Stop')+'</b><br>'+esc(x.city||'')+', '+esc(x.country||'')+'<br><small>Truck stop · '+(x.has_fuel?'⛽ Fuel · ':'')+(x.has_repair?'🔧 Repair · ':'')+(x.has_parking?'🅿 Parking':'')+'</small>','truckstops')}
+ for(const x of fr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q)add(q.lat,q.lon,'<b>⛽ '+esc(x.name||'Fuel Station')+'</b><br>'+esc(x.city||'')+', '+esc(x.country||'')+'<br><small>'+ (x.verified?'Verified':'Unverified')+' · Retail fuel</small>','fuel')}
+ for(const x of mr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);const k=x.layer_key==='fuel'?'fuel':x.layer_key==='truckstops'?'truckstops':x.layer_key==='warehouses'?'warehouses':x.layer_key==='equipment'?'equipment':'services';if(q)add(q.lat,q.lon,'<b>'+esc(x.name||x.location_type||'CargoDek location')+'</b><br>'+esc(x.city||'')+', '+esc(x.country||'')+'<br><small>'+esc(x.location_type||k)+' · User listing</small>',k)}
+ if(bounds.length)cdMap.fitBounds(bounds,{padding:[35,35],maxZoom:7});
+ setTimeout(()=>cdMap&&cdMap.invalidateSize(),200)
 }
 
 async function renderServices(){
