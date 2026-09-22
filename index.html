@@ -1059,6 +1059,56 @@ function cdMapMarkerOptions(category){const colors={load:'#E74C3C',fuel:'#2ECC71
 function cdMapCategory(layer){return layer==='loads'?'load':layer==='truckstops'?'truck_stop':layer==='warehouses'?'warehouse':layer==='fuel'?'fuel':layer==='services'?'services':'equipment'}
 function cdMapPopup(title,body,meta){return `<div style="font-family:sans-serif;min-width:180px"><strong style="text-transform:uppercase">${esc(title||'CargoDek')}</strong><div style="margin:6px 0">${body}</div><small style="color:#667085">${meta||''}</small></div>`}
 let cdPublicMapLoadIndex={},cdPublicRouteLayer=null,cdPublicDestinationMarker=null;
+const cdRouteTollTariffs={
+ 'Donkerhoek Ramp':66,'Cullinan Ramp':86,'Diamond Hill Mainline':220,'Valtaki Ramp':183,'Ekandustria Ramp':130,
+ 'Middleburg Mainline':365,'Middelburg Mainline':365,'Machado Mainline':729,'Nkomazi Mainline':405,
+ 'Moamba Plaza':1800,'Maputo Plaza':550
+};
+const cdRouteTollSource='TRAC N4 toll tariffs effective 1 March 2026';
+const cdRouteBorderAliases={
+ 'beitbridge':'Beitbridge Border Post','beïtbridge':'Beitbridge Border Post',
+ 'lebombo':'Lebombo / Ressano Garcia Border Post','ressano garcia':'Lebombo / Ressano Garcia Border Post',
+ 'chirundu':'Chirundu One Stop Border Post','kasumbalesa':'Kasumbalesa Border Post',
+ 'kazungula':'Kazungula Border Post','victoria falls':'Victoria Falls Border Post',
+ 'plumtree':'Plumtree Border Post','forbes':'Forbes Border Post'
+};
+function cdRoutePointSegmentDistance(p,a,b){
+ const latScale=Math.cos((p[1]*Math.PI)/180),px=p[0]*latScale,py=p[1],ax=a[0]*latScale,ay=a[1],bx=b[0]*latScale,by=b[1];
+ const dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy||1))),x=ax+t*dx,y=ay+t*dy;
+ return Math.sqrt((px-x)*(px-x)+(py-y)*(py-y))/latScale;
+}
+function cdRouteNear(routeCoords,lat,lon,maxKm){
+ const p=[Number(lon),Number(lat)];
+ for(let i=1;i<routeCoords.length;i++)if(cdRoutePointSegmentDistance(p,routeCoords[i-1],routeCoords[i])*111.32<=maxKm)return true;
+ return false;
+}
+async function cdRouteInfrastructure(routeCoords){
+ const lons=routeCoords.map(p=>Number(p[0])),lats=routeCoords.map(p=>Number(p[1]));
+ const south=Math.max(-90,Math.min(...lats)-0.25),west=Math.max(-180,Math.min(...lons)-0.25),north=Math.min(90,Math.max(...lats)+0.25),east=Math.min(180,Math.max(...lons)+0.25);
+ const q='[out:json][timeout:25];(nwr["barrier"="border_control"]('+south+','+west+','+north+','+east+');nwr["government"="border_control"]('+south+','+west+','+north+','+east+');nwr["barrier"="toll_booth"]('+south+','+west+','+north+','+east+');nwr["highway"="toll_gantry"]('+south+','+west+','+north+','+east+');nwr["toll"="yes"]('+south+','+west+','+north+','+east+'););out center tags;';
+ const endpoints=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+ let data=null;
+ for(const endpoint of endpoints){try{const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});if(r.ok){data=await r.json();break}}catch(e){}}
+ if(!data?.elements)return {borders:[],tolls:[],source:'OpenStreetMap/Overpass'};
+ const borders=[],tolls=[];
+ for(const el of data.elements){
+  const lat=el.lat??el.center?.lat,lon=el.lon??el.center?.lon;if(!Number.isFinite(Number(lat))||!Number.isFinite(Number(lon))||!cdRouteNear(routeCoords,lat,lon,0.35))continue;
+  const tags=el.tags||{},name=tags.name||tags['name:en']||'Unnamed';
+  const isBorder=tags.barrier==='border_control'||tags.government==='border_control';
+  const isToll=tags.barrier==='toll_booth'||tags.highway==='toll_gantry'||tags.toll==='yes';
+  if(isBorder&&!borders.some(x=>Math.abs(x.lat-lat)<.01&&Math.abs(x.lon-lon)<.01))borders.push({name,lat:Number(lat),lon:Number(lon)});
+  if(isToll&&!tolls.some(x=>Math.abs(x.lat-lat)<.005&&Math.abs(x.lon-lon)<.005))tolls.push({name,lat:Number(lat),lon:Number(lon)});
+ }
+ return {borders,tolls,source:'OpenStreetMap/Overpass'};
+}
+function cdRouteTollCost(tolls){
+ let total=0,known=0,names=[];
+ for(const t of tolls){
+  const key=Object.keys(cdRouteTollTariffs).find(k=>k.toLowerCase()===String(t.name).toLowerCase()||String(t.name).toLowerCase().includes(k.toLowerCase().replace(' mainline','').replace(' ramp','')));
+  if(key){total+=cdRouteTollTariffs[key];known++;names.push(key)}
+ }
+ return {total,known,names};
+}
 async function cdPublicRoadRoute(loadId){
  const x=cdPublicMapLoadIndex[loadId];if(!x||!x.o||!x.d||!cdMap)return;
  if(cdPublicRouteLayer){try{cdMap.removeLayer(cdPublicRouteLayer)}catch(e){}}
@@ -1071,10 +1121,21 @@ async function cdPublicRoadRoute(loadId){
   if(!r.ok||j.code!=='Ok'||!j.routes?.[0]?.geometry?.coordinates?.length)throw new Error('No road route returned');
   cdPublicRouteLayer=L.geoJSON(j.routes[0].geometry,{style:{color:'#16a56b',weight:5,opacity:.82}}).addTo(cdMap);
   const km=(Number(j.routes[0].distance||0)/1000).toFixed(0),mins=Math.round(Number(j.routes[0].duration||0)/60);
-  cdPublicRouteLayer.bindPopup(cdMapPopup('Likely road route',esc(x.row.origin||'Pickup')+' → '+esc(x.row.destination||'Destination')+'<br><small>'+km+' km · approx. '+mins+' min driving</small>'));
   cdMap.fitBounds(cdPublicRouteLayer.getBounds(),{padding:[45,45],maxZoom:10});
+  const infra=await cdRouteInfrastructure(j.routes[0].geometry.coordinates);
+  const borderNames=infra.borders.map(b=>{const k=String(b.name).toLowerCase();return cdRouteBorderAliases[k]||b.name}).filter((v,i,a)=>a.indexOf(v)===i);
+  const tollNames=infra.tolls.map(t=>t.name).filter((v,i,a)=>a.indexOf(v)===i);
+  const tc=cdRouteTollCost(infra.tolls);
+  const borderHtml=borderNames.length?'<b>International borders:</b> '+borderNames.length+'<br>'+borderNames.map(n=>'• '+esc(n)).join('<br>'):'<b>International borders:</b> 0';
+  const tollHtml=tollNames.length?'<b>Toll gates/plazas:</b> '+tollNames.length+'<br>'+tollNames.map(n=>'• '+esc(n)).join('<br>'):'<b>Toll gates/plazas:</b> 0';
+  const costHtml=tc.known?'<b>Public tariff estimate:</b> '+esc(tc.known===tollNames.length?'R '+tc.total.toLocaleString():'R '+tc.total.toLocaleString()+' + unverified/other tolls')+'<br><small>Heavy-truck Class 4 where a matching TRAC tariff is published. Source: '+esc(cdRouteTollSource)+'.</small>':'<b>Toll cost:</b> Public tariff not available/verified for all detected tolls.<br><small>Gate count is from '+esc(infra.source)+'. CargoDek will not invent a price.</small>';
+  const details=esc(x.row.origin||'Pickup')+' → '+esc(x.row.destination||'Destination')+'<br><b>Distance:</b> '+km+' km<br><b>Estimated driving time:</b> '+mins+' min<br>'+borderHtml+'<br>'+tollHtml+'<br>'+costHtml;
+  cdRouteLayer=L.geoJSON(j.routes[0].geometry,{style:{color:'#16a56b',weight:5,opacity:.82}}).addTo(cdMap);
+  cdRouteLayer.bindPopup(cdMapPopup('Route details',details,'Road route: OSRM · Infrastructure: '+infra.source));
+  cdPublicDestinationMarker.bindPopup(cdMapPopup('Destination',details,'Coordinates hidden from user display.'));
+  cdPublicDestinationMarker.openPopup();
  }catch(e){
-  cdPublicDestinationMarker.bindPopup(cdMapPopup('Destination',esc(x.row.destination||'Destination')+'<br><small>Destination shown without a route because the road-routing service is temporarily unavailable.</small>'));
+  cdPublicDestinationMarker.bindPopup(cdMapPopup('Destination',esc(x.row.destination||'Destination')+'<br><small>Route details are temporarily unavailable. No straight-line route is shown.</small>')).openPopup();
  }
 }
 async function loadMapData(){
