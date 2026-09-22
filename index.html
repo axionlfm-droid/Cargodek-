@@ -252,7 +252,7 @@ const SUPABASE_URL='https://rmyswyzzotvznteyqyym.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJteXN3eXp6b3R2em50ZXlxeXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NzMyODgsImV4cCI6MjEwNDQ0OTI4OH0.-Q5dcRpCWrd0GxLFCL4WEkhKFmauy3alfcHs6Ok6hrA';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);const $=id=>document.getElementById(id);
 const getAppUrl=()=>{try{const u=new URL(window.location.href);u.hash='';u.search='';return u.toString()}catch(e){return null}};
-let currentUser=null,profile=null,company=null,roles=[],currentRole=null,loads=[],myLoads=[],connections=[],fuelListings=[],fuelRequirements=[],fuelEnquiries=[],fuelOffers=[],messages=[],subscription=null,trucks=[],loadImages=[],appBooting=false;
+let currentUser=null,profile=null,company=null,roles=[],currentRole=null,loads=[],myLoads=[],connections=[],fuelListings=[],fuelRequirements=[],fuelEnquiries=[],fuelOffers=[],messages=[],subscription=null,trucks=[],loadImages=[],appBooting=false,appBootPromise=null;
 let isAdmin=false;
 const AFRICA_COUNTRIES=['Algeria','Angola','Benin','Botswana','Burkina Faso','Burundi','Cabo Verde','Cameroon','Central African Republic','Chad','Comoros','Democratic Republic of the Congo','Republic of the Congo','Côte d’Ivoire','Djibouti','Egypt','Equatorial Guinea','Eritrea','Eswatini','Ethiopia','Gabon','The Gambia','Ghana','Guinea','Guinea-Bissau','Kenya','Lesotho','Liberia','Libya','Madagascar','Malawi','Mali','Mauritania','Mauritius','Morocco','Mozambique','Namibia','Niger','Nigeria','Rwanda','São Tomé and Príncipe','Senegal','Seychelles','Sierra Leone','Somalia','South Africa','South Sudan','Sudan','Tanzania','Togo','Tunisia','Uganda','Zambia','Zimbabwe'];
 const roleLabels={shipper:'Shipper / Cargo Owner',freight_broker:'Freight Broker',transporter:'Transporter',fleet_hire:'Fleet Hire',fuel_supplier:'Wholesale Fuel Supplier',fuel_buyer:'Fuel Buyer',retail_fuel_supplier:'Retail Fuel Supplier',clearing_agent:'Clearing Agent',warehouse:'Warehouse / Storage',roadside_assistance:'Roadside Assistance',equipment_hire:'Equipment Hire',asset_sales:'Truck / Trailer / Equipment Sales',truck_stop:'Truck Stop'};
@@ -387,26 +387,29 @@ function loadFullPrices(){
   if(x)x.innerHTML='<div class="notice">Fuel-price data is only displayed when a verified source/provider has supplied a timestamped value. Unavailable data is not estimated.</div>';
 }
 async function enterApp(){
-  if(appBooting){
-    const started=Date.now();
-    while(appBooting&&Date.now()-started<25000)await new Promise(resolve=>setTimeout(resolve,100));
-    if(appBooting)throw new Error('CargoDek workspace startup timed out. Please refresh and sign in again.');
-    return;
-  }
+  if(appBootPromise)return appBootPromise;
   appBooting=true;
-  try{
-    $('authView').classList.add('hidden');$('appView').classList.remove('hidden');
-    await loadContext();
-    if(!company){openOnboarding();return}
-    const termsOk=await requireCurrentTerms();
-    if(!termsOk)return;
-    await refresh();
-  }catch(e){
-    console.error('CargoDek app boot failed',e);
-    const h=$('cdHealth');
-    if(h)h.innerHTML=`<div class="error"><b>Workspace could not finish loading.</b><br>${esc(e?.message||'Please refresh and try again.')}</div>`;
-    $('appView')?.classList.remove('hidden');
-  }finally{appBooting=false;}
+  const boot=(async()=>{
+    try{
+      $('authView').classList.add('hidden');$('appView').classList.remove('hidden');
+      await loadContext();
+      if(!company){openOnboarding();return}
+      const termsOk=await requireCurrentTerms();
+      if(!termsOk)return;
+      await refresh();
+    }catch(e){
+      console.error('CargoDek app boot failed',e);
+      const h=$('cdHealth');
+      if(h)h.innerHTML=`<div class="error"><b>Workspace could not finish loading.</b><br>${esc(e?.message||'Please refresh and try again.')}</div>`;
+      $('appView')?.classList.remove('hidden');
+    }
+  })();
+  appBootPromise=boot;
+  try{return await boot}
+  finally{
+    if(appBootPromise===boot)appBootPromise=null;
+    appBooting=false;
+  }
 }
 
 async function refresh(){
