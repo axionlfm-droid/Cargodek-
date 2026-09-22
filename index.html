@@ -1059,123 +1059,40 @@ function cdMapMarkerOptions(category){const colors={load:'#E74C3C',fuel:'#2ECC71
 function cdMapCategory(layer){return layer==='loads'?'load':layer==='truckstops'?'truck_stop':layer==='warehouses'?'warehouse':layer==='fuel'?'fuel':layer==='services'?'services':'equipment'}
 function cdMapPopup(title,body,meta){return `<div style="font-family:sans-serif;min-width:180px"><strong style="text-transform:uppercase">${esc(title||'CargoDek')}</strong><div style="margin:6px 0">${body}</div><small style="color:#667085">${meta||''}</small></div>`}
 let cdPublicMapLoadIndex={},cdPublicRouteLayer=null,cdPublicDestinationMarker=null;
-const cdRouteTollTariffs={
- 'Donkerhoek Ramp':66,'Cullinan Ramp':86,'Diamond Hill Mainline':220,'Valtaki Ramp':183,'Ekandustria Ramp':130,
- 'Middleburg Mainline':365,'Middelburg Mainline':365,'Machado Mainline':729,'Nkomazi Mainline':405,
- 'Moamba Plaza':1800,'Maputo Plaza':550
-};
+const cdRouteTollTariffs={'Donkerhoek Ramp':64,'Cullinan Ramp':64,'Diamond Hill Mainline':213,'Valtaki Ramp':177,'Ekandustria Ramp':126,'Middleburg Mainline':352,'Middelburg Mainline':352,'Machado Mainline':704,'Nkomazi Mainline':391,'Moamba Plaza':1800,'Maputo Plaza':550};
 const cdRouteTollSource='TRAC N4 toll tariffs effective 1 March 2026';
-const cdRouteBorderAliases={
- 'beitbridge':'Beitbridge Border Post','beïtbridge':'Beitbridge Border Post',
- 'lebombo':'Lebombo / Ressano Garcia Border Post','ressano garcia':'Lebombo / Ressano Garcia Border Post',
- 'chirundu':'Chirundu One Stop Border Post','kasumbalesa':'Kasumbalesa Border Post',
- 'kazungula':'Kazungula Border Post','victoria falls':'Victoria Falls Border Post',
- 'plumtree':'Plumtree Border Post','forbes':'Forbes Border Post'
-};
-function cdRoutePointSegmentDistance(p,a,b){
- const latScale=Math.cos((p[1]*Math.PI)/180),px=p[0]*latScale,py=p[1],ax=a[0]*latScale,ay=a[1],bx=b[0]*latScale,by=b[1];
- const dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy||1))),x=ax+t*dx,y=ay+t*dy;
- return Math.sqrt((px-x)*(px-x)+(py-y)*(py-y))/latScale;
+const cdRouteFuelCorridorKm=10,cdRouteRoadsideFallbackRadiusKm=50;
+const cdRouteBorderAliases={'beitbridge':'Beitbridge Border Post','beitbridge border post':'Beitbridge Border Post','lebombo':'Lebombo / Ressano Garcia Border Post','ressano garcia':'Lebombo / Ressano Garcia Border Post','lebombo / ressano garcia':'Lebombo / Ressano Garcia Border Post','chirundu':'Chirundu One Stop Border Post','chirundu one stop border post':'Chirundu One Stop Border Post','kasumbalesa':'Kasumbalesa Border Post','kazungula':'Kazungula Border Post','victoria falls':'Victoria Falls Border Post','plumtree':'Plumtree Border Post','forbes':'Forbes Border Post'};
+function cdLoadTypeLabel(v){return String(v||'local')==='cross_border'?'Cross-border':'Local'}
+function cdLoadCategoryLabel(v){return String(v||'ad_hoc')==='contract'?'Contract':'Ad hoc'}
+function cdGoogleMapsDirectionsUrl(o,d){return 'https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(o.lat+','+o.lon)+'&destination='+encodeURIComponent(d.lat+','+d.lon)+'&travelmode=driving'}
+function cdRoutePointSegmentDistance(p,a,b){const s=Math.cos((p[1]*Math.PI)/180),px=p[0]*s,py=p[1],ax=a[0]*s,ay=a[1],bx=b[0]*s,by=b[1],dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy||1))),x=ax+t*dx,y=ay+t*dy;return Math.sqrt((px-x)*(px-x)+(py-y)*(py-y))/s}
+function cdRouteNear(rc,lat,lon,maxKm){const p=[Number(lon),Number(lat)];for(let i=1;i<rc.length;i++)if(cdRoutePointSegmentDistance(p,rc[i-1],rc[i])*111.32<=maxKm)return true;return false}
+async function cdRouteInfrastructure(rc){
+ const lons=rc.map(p=>+p[0]),lats=rc.map(p=>+p[1]),south=Math.max(-90,Math.min(...lats)-.25),west=Math.max(-180,Math.min(...lons)-.25),north=Math.min(90,Math.max(...lats)+.25),east=Math.min(180,Math.max(...lons)+.25);
+ const q='[out:json][timeout:25];(nwr["barrier"="border_control"]('+south+','+west+','+north+','+east+');nwr["government"="border_control"]('+south+','+west+','+north+','+east+');nwr["barrier"="toll_booth"]('+south+','+west+','+north+','+east+');nwr["highway"="toll_gantry"]('+south+','+west+','+north+','+east+'););out center tags;';
+ let data=null;for(const ep of ['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter']){try{const r=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});if(r.ok){data=await r.json();break}}catch(e){}}
+ if(!data?.elements)return{borders:[],tolls:[],source:'OpenStreetMap/Overpass'};
+ const borders=[],tolls=[];for(const el of data.elements){const lat=el.lat??el.center?.lat,lon=el.lon??el.center?.lon;if(!Number.isFinite(+lat)||!Number.isFinite(+lon)||!cdRouteNear(rc,lat,lon,.35))continue;const tags=el.tags||{},name=tags.name||tags['name:en']||'Detected infrastructure point',ib=tags.barrier==='border_control'||tags.government==='border_control',it=tags.barrier==='toll_booth'||tags.highway==='toll_gantry';if(ib&&!borders.some(x=>String(x.name).toLowerCase()===String(name).toLowerCase()||(Math.abs(x.lat-lat)<.01&&Math.abs(x.lon-lon)<.01)))borders.push({name,lat:+lat,lon:+lon});if(it&&!tolls.some(x=>String(x.name).toLowerCase()===String(name).toLowerCase()||(Math.abs(x.lat-lat)<.005&&Math.abs(x.lon-lon)<.005)))tolls.push({name,lat:+lat,lon:+lon})}
+ return{borders,tolls,source:'OpenStreetMap/Overpass'}
 }
-function cdRouteNear(routeCoords,lat,lon,maxKm){
- const p=[Number(lon),Number(lat)];
- for(let i=1;i<routeCoords.length;i++)if(cdRoutePointSegmentDistance(p,routeCoords[i-1],routeCoords[i])*111.32<=maxKm)return true;
- return false;
-}
-async function cdRouteInfrastructure(routeCoords){
- const lons=routeCoords.map(p=>Number(p[0])),lats=routeCoords.map(p=>Number(p[1]));
- const south=Math.max(-90,Math.min(...lats)-0.25),west=Math.max(-180,Math.min(...lons)-0.25),north=Math.min(90,Math.max(...lats)+0.25),east=Math.min(180,Math.max(...lons)+0.25);
- const q='[out:json][timeout:25];(nwr["barrier"="border_control"]('+south+','+west+','+north+','+east+');nwr["government"="border_control"]('+south+','+west+','+north+','+east+');nwr["barrier"="toll_booth"]('+south+','+west+','+north+','+east+');nwr["highway"="toll_gantry"]('+south+','+west+','+north+','+east+');nwr["toll"="yes"]('+south+','+west+','+north+','+east+'););out center tags;';
- const endpoints=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
- let data=null;
- for(const endpoint of endpoints){try{const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});if(r.ok){data=await r.json();break}}catch(e){}}
- if(!data?.elements)return {borders:[],tolls:[],source:'OpenStreetMap/Overpass'};
- const borders=[],tolls=[];
- for(const el of data.elements){
-  const lat=el.lat??el.center?.lat,lon=el.lon??el.center?.lon;if(!Number.isFinite(Number(lat))||!Number.isFinite(Number(lon))||!cdRouteNear(routeCoords,lat,lon,0.35))continue;
-  const tags=el.tags||{},name=tags.name||tags['name:en']||'Unnamed';
-  const isBorder=tags.barrier==='border_control'||tags.government==='border_control';
-  const isToll=tags.barrier==='toll_booth'||tags.highway==='toll_gantry'||tags.toll==='yes';
-  if(isBorder&&!borders.some(x=>Math.abs(x.lat-lat)<.01&&Math.abs(x.lon-lon)<.01))borders.push({name,lat:Number(lat),lon:Number(lon)});
-  if(isToll&&!tolls.some(x=>Math.abs(x.lat-lat)<.005&&Math.abs(x.lon-lon)<.005))tolls.push({name,lat:Number(lat),lon:Number(lon)});
- }
- return {borders,tolls,source:'OpenStreetMap/Overpass'};
-}
-function cdRouteTollCost(tolls){
- let total=0,known=0,names=[];
- for(const t of tolls){
-  const key=Object.keys(cdRouteTollTariffs).find(k=>k.toLowerCase()===String(t.name).toLowerCase()||String(t.name).toLowerCase().includes(k.toLowerCase().replace(' mainline','').replace(' ramp','')));
-  if(key){total+=cdRouteTollTariffs[key];known++;names.push(key)}
- }
- return {total,known,names};
-}
-async function cdPublicRoadRoute(loadId){
- const x=cdPublicMapLoadIndex[loadId];if(!x||!x.o||!x.d||!cdMap)return;
- if(cdPublicRouteLayer){try{cdMap.removeLayer(cdPublicRouteLayer)}catch(e){}}
- if(cdPublicDestinationMarker){try{cdMap.removeLayer(cdPublicDestinationMarker)}catch(e){}}
- const o=x.o,d=x.d;
- cdPublicDestinationMarker=L.marker([d.lat,d.lon],{zIndexOffset:900}).bindPopup(cdMapPopup('Destination',esc(x.row.destination||'Destination')+'<br><small>Route destination for <b>'+esc(x.row.commodity||'load')+'</b></small>')).addTo(cdMap);
- try{
-  const url='https://router.project-osrm.org/route/v1/driving/'+o.lon+','+o.lat+';'+d.lon+','+d.lat+'?overview=full&geometries=geojson&steps=false';
-  const r=await fetch(url,{headers:{'Accept':'application/json'}}),j=await r.json();
-  if(!r.ok||j.code!=='Ok'||!j.routes?.[0]?.geometry?.coordinates?.length)throw new Error('No road route returned');
-  cdPublicRouteLayer=L.geoJSON(j.routes[0].geometry,{style:{color:'#16a56b',weight:5,opacity:.82}}).addTo(cdMap);
-  const km=(Number(j.routes[0].distance||0)/1000).toFixed(0),mins=Math.round(Number(j.routes[0].duration||0)/60);
-  cdMap.fitBounds(cdPublicRouteLayer.getBounds(),{padding:[45,45],maxZoom:10});
-  const infra=await cdRouteInfrastructure(j.routes[0].geometry.coordinates);
-  const borderNames=infra.borders.map(b=>{const k=String(b.name).toLowerCase();return cdRouteBorderAliases[k]||b.name}).filter((v,i,a)=>a.indexOf(v)===i);
-  const tollNames=infra.tolls.map(t=>t.name).filter((v,i,a)=>a.indexOf(v)===i);
-  const tc=cdRouteTollCost(infra.tolls);
-  const borderHtml=borderNames.length?'<b>International borders:</b> '+borderNames.length+'<br>'+borderNames.map(n=>'• '+esc(n)).join('<br>'):'<b>International borders:</b> 0';
-  const tollHtml=tollNames.length?'<b>Toll gates/plazas:</b> '+tollNames.length+'<br>'+tollNames.map(n=>'• '+esc(n)).join('<br>'):'<b>Toll gates/plazas:</b> 0';
-  const costHtml=tc.known?'<b>Public tariff estimate:</b> '+esc(tc.known===tollNames.length?'R '+tc.total.toLocaleString():'R '+tc.total.toLocaleString()+' + unverified/other tolls')+'<br><small>Heavy-truck Class 4 where a matching TRAC tariff is published. Source: '+esc(cdRouteTollSource)+'.</small>':'<b>Toll cost:</b> Public tariff not available/verified for all detected tolls.<br><small>Gate count is from '+esc(infra.source)+'. CargoDek will not invent a price.</small>';
-  const details=esc(x.row.origin||'Pickup')+' → '+esc(x.row.destination||'Destination')+'<br><b>Distance:</b> '+km+' km<br><b>Estimated driving time:</b> '+mins+' min<br>'+borderHtml+'<br>'+tollHtml+'<br>'+costHtml;
-  cdRouteLayer=L.geoJSON(j.routes[0].geometry,{style:{color:'#16a56b',weight:5,opacity:.82}}).addTo(cdMap);
-  cdRouteLayer.bindPopup(cdMapPopup('Route details',details,'Road route: OSRM · Infrastructure: '+infra.source));
-  cdPublicDestinationMarker.bindPopup(cdMapPopup('Destination',details,'Coordinates hidden from user display.'));
-  cdPublicDestinationMarker.openPopup();
- }catch(e){
-  cdPublicDestinationMarker.bindPopup(cdMapPopup('Destination',esc(x.row.destination||'Destination')+'<br><small>Route details are temporarily unavailable. No straight-line route is shown.</small>')).openPopup();
- }
-}
+function cdRouteTollCost(tolls){const byCurrency={ZAR:0,MZN:0},knownNames=[];for(const t of tolls){const raw=String(t.name||'').toLowerCase(),key=Object.keys(cdRouteTollTariffs).find(k=>raw===k.toLowerCase()||raw.includes(k.toLowerCase().replace(' mainline','').replace(' ramp','').replace(' plaza','')));if(!key)continue;const cur=/moamba|maputo/i.test(key)?'MZN':'ZAR';byCurrency[cur]+=cdRouteTollTariffs[key];knownNames.push(key)}return{byCurrency,known:knownNames.length,names:knownNames}}
+async function cdRouteSupportCounts(rc){const [sr,fr]=await Promise.all([sb.from('cd_service_listings').select('id,title,city,country,latitude,longitude,service_area,coverage_radius_km').eq('status','active').eq('service_type','roadside_assistance').limit(500),sb.from('cd_fuel_stations').select('id,name,city,country,latitude,longitude,verified').eq('status','active').limit(500)]);const roadside=(sr.data||[]).filter(x=>validCoord(x.latitude,x.longitude)&&cdRouteNear(rc,x.latitude,x.longitude,Number(x.coverage_radius_km)||cdRouteRoadsideFallbackRadiusKm)),fuel=(fr.data||[]).filter(x=>validCoord(x.latitude,x.longitude)&&cdRouteNear(rc,x.latitude,x.longitude,cdRouteFuelCorridorKm));return{roadside,fuel}}
+function cdRouteDetailHtml(row,km,mins,infra,support,googleUrl){const bs=infra.borders.map(b=>{const k=String(b.name).toLowerCase();return cdRouteBorderAliases[k]||b.name}).filter((v,i,a)=>a.indexOf(v)===i),ts=infra.tolls.map(t=>t.name).filter((v,i,a)=>a.indexOf(v)===i),tc=cdRouteTollCost(infra.tolls),parts=[];if(tc.byCurrency.ZAR)parts.push('R '+tc.byCurrency.ZAR.toLocaleString());if(tc.byCurrency.MZN)parts.push('MZN '+tc.byCurrency.MZN.toLocaleString());return '<b>Route:</b> '+esc(row.origin||'Pickup')+' → '+esc(row.destination||'Destination')+'<br><b>Load:</b> '+esc(row.commodity||'Cargo')+' · '+cdLoadTypeLabel(row.load_type)+' · '+cdLoadCategoryLabel(row.load_category)+'<br><b>Road distance:</b> '+esc(km)+' km · approx. '+esc(mins)+' min driving<hr style="border:0;border-top:1px solid #e5e7eb;margin:8px 0"><b>International borders:</b> '+bs.length+(bs.length?'<br>'+bs.map(n=>'• '+esc(n)).join('<br>'):'')+'<br><b>Toll gates/plazas:</b> '+ts.length+(ts.length?'<br>'+ts.map(n=>'• '+esc(n)).join('<br>'):'')+'<br><b>Published toll tariff estimate:</b> '+(tc.known?parts.join(' + '):'Unavailable for detected tolls')+'<br><small>Class 4 where a current public TRAC tariff matched. Source: '+esc(cdRouteTollSource)+'.</small><br><b>Roadside assistance:</b> '+support.roadside.length+' CargoDek service area'+(support.roadside.length===1?'':'s')+' covering this route'+(support.roadside.length?' · '+support.roadside.map(x=>esc(x.title)).join(', '):'')+'<br><b>Retail fuel stations:</b> '+support.fuel.length+' CargoDek station'+(support.fuel.length===1?'':'s')+' within '+cdRouteFuelCorridorKm+' km of the route<br><small>Infrastructure: '+esc(infra.source)+'. Service counts are CargoDek listings. No latitude/longitude is displayed.</small><br><a class="btn primary" style="display:inline-block;margin-top:8px;text-decoration:none" href="'+googleUrl+'" target="_blank" rel="noopener">Open this route in Google Maps</a>'}
+async function cdPublicRoadRoute(loadId){const x=cdPublicMapLoadIndex[loadId];if(!x||!x.o||!x.d||!cdMap)return;if(cdPublicRouteLayer){try{cdMap.removeLayer(cdPublicRouteLayer)}catch(e){}}if(cdPublicDestinationMarker){try{cdMap.removeLayer(cdPublicDestinationMarker)}catch(e){}}const o=x.o,d=x.d,g=cdGoogleMapsDirectionsUrl(o,d);cdPublicDestinationMarker=L.marker([d.lat,d.lon],{zIndexOffset:900}).addTo(cdMap);try{const u='https://router.project-osrm.org/route/v1/driving/'+o.lon+','+o.lat+';'+d.lon+','+d.lat+'?overview=full&geometries=geojson&steps=false',r=await fetch(u,{headers:{'Accept':'application/json'}}),j=await r.json();if(!r.ok||j.code!=='Ok'||!j.routes?.[0]?.geometry?.coordinates?.length)throw new Error('No road route returned');const rt=j.routes[0],km=(+rt.distance/1000).toFixed(0),mins=Math.round(+rt.duration/60);cdPublicRouteLayer=L.geoJSON(rt.geometry,{style:{color:'#16a56b',weight:5,opacity:.82}}).addTo(cdMap);cdMap.fitBounds(cdPublicRouteLayer.getBounds(),{padding:[45,45],maxZoom:10});const[inf,sup]=await Promise.all([cdRouteInfrastructure(rt.geometry.coordinates),cdRouteSupportCounts(rt.geometry.coordinates)]),detail=cdRouteDetailHtml(x.row,km,mins,inf,sup,g);cdPublicRouteLayer.bindPopup(cdMapPopup('Likely road route',detail));cdPublicDestinationMarker.bindPopup(cdMapPopup('Destination',detail)).openPopup()}catch(e){cdPublicDestinationMarker.bindPopup(cdMapPopup('Destination',esc(x.row.destination||'Destination')+'<br><span class="small">CargoDek could not calculate the road distance right now.</span><br><a class="btn primary" style="display:inline-block;margin-top:7px;text-decoration:none" href="'+g+'" target="_blank" rel="noopener">Open route in Google Maps</a>')).openPopup()}}
+
 async function loadMapData(){
- if(!cdMap)return;
- Object.values(cdMapLayers).forEach(g=>g&&g.clearLayers());
- cdPublicMapLoadIndex={};cdPublicRouteLayer=null;cdPublicDestinationMarker=null;
- const bounds=[];
- const add=(lat,lon,html,layer)=>{if(!validCoord(lat,lon))return;const target=cdMapLayers[layer]||cdMapLayers.services;const marker=L.circleMarker([Number(lat),Number(lon)],cdMapMarkerOptions(cdMapCategory(layer))).bindPopup(html).addTo(target);bounds.push([Number(lat),Number(lon)]);return marker};
- const hubs=['Johannesburg','Durban','Maputo','Beira','Harare','Gaborone','Lusaka','Lubumbashi','Kasumbalesa','Blantyre','Windhoek'];
- hubs.forEach(city=>{const q=resolveMapPoint(null,null,city,'');if(q)L.circleMarker([q.lat,q.lon],{radius:4,weight:1,color:'#9fb4c9',fillColor:'#9fb4c9',fillOpacity:.7}).bindTooltip(city,{direction:'top'}).addTo(cdMapLayers.loads)});
- const lr=await sb.from('cargodek_public_loads_map').select('*').eq('status','open').order('created_at',{ascending:false}).limit(500);
- const groups={};
- for(const x of lr.data||[]){
-  const o=resolveMapPoint(x.origin_latitude,x.origin_longitude,x.origin,x.origin_country),d=resolveMapPoint(x.destination_latitude,x.destination_longitude,x.destination,x.destination_country);
-  if(!o)continue;
-  cdPublicMapLoadIndex[x.id]={row:x,o,d};
-  const key=o.lat.toFixed(5)+','+o.lon.toFixed(5);
-  (groups[key] ||= {o,items:[]}).items.push(x);
- }
- for(const g of Object.values(groups)){
-  const items=g.items;
-  const body=items.map(x=>`<div style="padding:7px 0;border-bottom:1px solid #e5e7eb"><b>${esc(x.commodity||'Load')}</b><br><small>${esc(x.origin||'')} → ${esc(x.destination||'')} · ${esc(x.load_type||'')}</small><br><button class="btn primary" style="margin-top:5px;width:100%" onclick="cdPublicRoadRoute('${esc(x.id)}')">Show destination & road route</button></div>`).join('');
-  add(g.o.lat,g.o.lon,cdMapPopup('Loading point',body,items.length+' public load'+(items.length===1?'':'s')+' at this pickup'),'loads');
- }
- const [sr,tr,fr,mr,fl]=await Promise.all([
-  sb.from('cd_service_listings').select('*').eq('status','active').limit(500),
-  sb.from('cd_truck_stops').select('*').eq('status','active').limit(500),
-  sb.from('cd_fuel_stations').select('*').eq('status','active').limit(500),
-  sb.from('cd_map_locations').select('*').eq('status','active').limit(500),
-  sb.from('fuel_listings').select('id,product,location,country,status').eq('status','active').limit(500)
- ]);
- for(const x of fl.data||[]){const q=resolveMapPoint(null,null,x.location,x.country);if(q)add(q.lat,q.lon,'<b>'+esc(x.product||'Fuel offer')+'</b><br>'+esc(x.location||'')+', '+esc(x.country||'')+'<br><small>Fuel marketplace · '+mapPointLabel(q)+'</small>','fuel')}
- for(const x of sr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q){const k=x.service_type==='warehouse'?'warehouses':(['equipment_hire','fleet_hire'].includes(x.service_type)?'equipment':'services');add(q.lat,q.lon,'<b>'+esc(x.title||'Service')+'</b><br>'+esc(x.city||'')+', '+esc(x.country||'')+'<br><small>'+esc(roleLabels[x.service_type]||x.service_type||'Service')+' · '+mapPointLabel(q)+'</small>',k)}}
+ if(!cdMap)return;Object.values(cdMapLayers).forEach(g=>g&&g.clearLayers());cdPublicMapLoadIndex={};cdPublicRouteLayer=null;cdPublicDestinationMarker=null;const bounds=[],add=(lat,lon,html,layer)=>{if(!validCoord(lat,lon))return;const target=cdMapLayers[layer]||cdMapLayers.services,m=L.circleMarker([+lat,+lon],cdMapMarkerOptions(cdMapCategory(layer))).bindPopup(html).addTo(target);bounds.push([+lat,+lon]);return m};
+ const lr=await sb.from('cargodek_public_loads_map').select('*').eq('status','open').order('created_at',{ascending:false}).limit(500),groups={};for(const x of lr.data||[]){if(String(x.commodity||'').startsWith('E2E Cargo '))continue;const o=resolveMapPoint(x.origin_latitude,x.origin_longitude,x.origin,x.origin_country),d=resolveMapPoint(x.destination_latitude,x.destination_longitude,x.destination,x.destination_country);if(!o)continue;cdPublicMapLoadIndex[x.id]={row:x,o,d};const key=o.lat.toFixed(5)+','+o.lon.toFixed(5);(groups[key]||={o,items:[]}).items.push(x)}
+ for(const g of Object.values(groups)){const body=g.items.map(x=>'<div style="padding:7px 0;border-bottom:1px solid #e5e7eb"><b>'+esc(x.commodity||'Load')+'</b><br><small>'+esc(x.origin||'')+' → '+esc(x.destination||'')+'</small><br><span class="badge">'+cdLoadTypeLabel(x.load_type)+'</span> <span class="badge">'+cdLoadCategoryLabel(x.load_category)+'</span><br><button class="btn primary" style="margin-top:5px;width:100%" onclick="cdPublicRoadRoute(\''+esc(x.id)+'\')">Show destination & road route</button></div>').join('');add(g.o.lat,g.o.lon,cdMapPopup('Loading point',body,g.items.length+' public load'+(g.items.length===1?'':'s')+' at this pickup'),'loads')}
+ const [sr,tr,fr,mr,fl]=await Promise.all([sb.from('cd_service_listings').select('*').eq('status','active').limit(500),sb.from('cd_truck_stops').select('*').eq('status','active').limit(500),sb.from('cd_fuel_stations').select('*').eq('status','active').limit(500),sb.from('cd_map_locations').select('*').eq('status','active').limit(500),sb.from('fuel_listings').select('id,product,location,country,status').eq('status','active').limit(500)]);
+ for(const x of fl.data||[]){const q=resolveMapPoint(null,null,x.location,x.country);if(q)add(q.lat,q.lon,'<b>⛽ '+esc(x.product||'Fuel offer')+'</b><br>'+esc(x.location||'')+', '+esc(x.country||'')+'<br><small>Wholesale fuel marketplace</small>','fuel')}
+ for(const x of sr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q){const k=x.service_type==='warehouse'?'warehouses':(['equipment_hire','fleet_hire'].includes(x.service_type)?'equipment':'services');add(q.lat,q.lon,'<b>'+esc(x.title||'Service')+'</b><br>'+esc(x.city||'')+', '+esc(x.country||'')+'<br><small>'+esc(roleLabels[x.service_type]||x.service_type||'Service')+(x.service_area?' · Coverage: '+esc(x.service_area):'')+'</small>',k);if(x.service_type==='roadside_assistance'){const radius=Number(x.coverage_radius_km)||cdRouteRoadsideFallbackRadiusKm;L.circle([q.lat,q.lon],{radius:radius*1000,color:'#ef4444',fillColor:'#ef4444',fillOpacity:.08,weight:1,dashArray:'5 5'}).bindTooltip('Roadside assistance coverage · '+radius+' km').addTo(cdMapLayers.services)}}}
  for(const x of tr.data||[]){const q=resolveMapPoint(null,null,x.city,x.country);if(q)add(q.lat,q.lon,'<b>🚛 '+esc(x.name||'Truck Stop')+'</b><br>'+esc(x.city||'')+', '+esc(x.country||'')+'<br><small>Truck stop · '+(x.has_fuel?'⛽ Fuel · ':'')+(x.has_repair?'🔧 Repair · ':'')+(x.has_parking?'🅿 Parking':'')+'</small>','truckstops')}
  for(const x of fr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);if(q)add(q.lat,q.lon,'<b>⛽ '+esc(x.name||'Fuel Station')+'</b><br>'+esc(x.city||'')+', '+esc(x.country||'')+'<br><small>'+ (x.verified?'Verified':'Unverified')+' · Retail fuel</small>','fuel')}
  for(const x of mr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);const k=x.layer_key==='fuel'?'fuel':x.layer_key==='truckstops'?'truckstops':x.layer_key==='warehouses'?'warehouses':x.layer_key==='equipment'?'equipment':'services';if(q)add(q.lat,q.lon,'<b>'+esc(x.name||x.location_type||'CargoDek location')+'</b><br>'+esc(x.city||'')+', '+esc(x.country||'')+'<br><small>'+esc(x.location_type||k)+' · User listing</small>',k)}
- if(bounds.length)cdMap.fitBounds(bounds,{padding:[35,35],maxZoom:7});
- setTimeout(()=>cdMap&&cdMap.invalidateSize(),200)
+ if(bounds.length)cdMap.fitBounds(bounds,{padding:[35,35],maxZoom:7});setTimeout(()=>cdMap&&cdMap.invalidateSize(),200)
 }
-
 async function renderServices(){
  const box=$('serviceContent'); if(!box)return;
  const roleTypes=['fleet_hire','clearing_agent','warehouse','roadside_assistance','equipment_hire','asset_sales'];
