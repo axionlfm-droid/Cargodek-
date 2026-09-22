@@ -350,7 +350,7 @@ async function hasCurrentTermsAcceptance(terms){
   if(q.error)throw new Error('Unable to verify Terms & Conditions acceptance. Database access to acceptance records is unavailable.');
   return !!q.data;
 }
-async function requireCurrentTerms(){
+async async function requireCurrentTerms(){
   if(!currentUser)return false;
   const terms=await getCurrentTerms();
   const version=terms?.version||CARGODEK_FALLBACK_TERMS_VERSION;
