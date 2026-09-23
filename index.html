@@ -502,7 +502,7 @@ async function finishOnboarding(){
  await loadContext();
  await refresh();
 }
-async async function renderDashboard(){
+async function renderDashboard(){
  const mine=myLoads||[], avail=(loads||[]).filter(l=>l.status==='open'), ownIds=ownLoadIds();
  const verified=company?.verification_status==='verified';
  const unread=(messages||[]).filter(m=>m.recipient_user_id===currentUser?.id && !m.read_at).length;
@@ -551,14 +551,6 @@ function newsThumbMarkup(n){const c=String(n?.category||'LOGISTICS');const icon=
 
 let cdSelectedLoadId=null,cdSelectedRouteLayer=null,cdSelectedDestinationMarker=null,cdMapLoadIndex={};
 
-function cdShowDashboardDestination(x){
- if(!x?.d||!window.cdDashMap)return null;
- if(cdSelectedDestinationMarker){try{window.cdDashMap.removeLayer(cdSelectedDestinationMarker)}catch(e){}}
- cdSelectedDestinationMarker=L.marker([x.d.lat,x.d.lon],{zIndexOffset:900}).addTo(window.cdDashMap);
- cdSelectedDestinationMarker.bindTooltip('Selected destination',{direction:'top'});
- cdSelectedDestinationMarker.bindPopup(cdMapPopup('Destination intelligence','<b>'+esc(x.row.origin||'Pickup')+' → '+esc(x.row.destination||'Destination')+'</b><br><span class="small">Calculating road distance, tolls, borders, fuel stations and roadside assistance…</span>')).openPopup();
- return cdSelectedDestinationMarker;
-}
 function cdDashRoutePanel(html){const el=$('cdDashRouteIntel');if(el)el.innerHTML=html}
 function cdShowDashboardDestination(x){
  if(!x?.d||!window.cdDashMap)return null;
@@ -1022,7 +1014,7 @@ async function submitVerification(){
  }catch(e){alert('Verification upload failed: '+(e.message||'Unknown error'))}
 }
 function renderSubscription(){$('subInfo').textContent=subscription?`Plan: ${subscription.plan} • Status: ${subscription.status}`:'No subscription record yet.'}
-async async function renderMarketplace(){
+async function renderMarketplace(){
  const box=$('marketplaceContent');if(!box)return;
  const [pr,cr,lr,rr,ro]=await Promise.all([
   sb.from('cd_social_posts').select('*').eq('status','published').order('created_at',{ascending:false}).limit(50),
