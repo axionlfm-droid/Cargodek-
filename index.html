@@ -573,24 +573,38 @@ function cdShowDashboardDestination(x){
  cdSelectedDestinationMarker.bindPopup(cdMapPopup('Destination intelligence',loading)).openPopup();
  return cdSelectedDestinationMarker;
 }
-const CD_ROUTE_CACHE_KEY='cargodek_route_intelligence_v3';
+const CD_ROUTE_CACHE_KEY='cargodek_route_intelligence_v4';
 const CD_ROUTE_CACHE_TTL=6*60*60*1000;
 const CD_ROUTE_WARM_LIMIT=8;
-const CD_ROUTE_BASE_TIMEOUT=9000;
-const CD_ROUTE_ENRICH_TIMEOUT=9000;
+const CD_ROUTE_BASE_TIMEOUT=7000;
+const CD_ROUTE_ENRICH_TIMEOUT=7000;
 const cdRouteMemory=new Map(),cdRouteInflight=new Map(),cdRouteEnrichInflight=new Map();
-function cdRouteKey(x){if(!x?.o||!x?.d)return null;return [x.o.lat,x.o.lon,x.d.lat,x.d.lon].map(v=>Number(v).toFixed(4)).join('|')}
+
+function cdRouteKey(x){
+ if(!x?.o||!x?.d)return null;
+ return [x.o.lat,x.o.lon,x.d.lat,x.d.lon].map(v=>Number(v).toFixed(4)).join('|');
+}
 function cdReadRouteCache(key){
  if(!key)return null;
  const mem=cdRouteMemory.get(key);
  if(mem&&Date.now()-mem.ts<CD_ROUTE_CACHE_TTL)return mem.value;
- try{const all=JSON.parse(localStorage.getItem(CD_ROUTE_CACHE_KEY)||'{}'),v=all[key];if(v&&Date.now()-v.ts<CD_ROUTE_CACHE_TTL){cdRouteMemory.set(key,v);return v.value}if(v){delete all[key];localStorage.setItem(CD_ROUTE_CACHE_KEY,JSON.stringify(all))}}catch(e){}
+ try{
+  const all=JSON.parse(localStorage.getItem(CD_ROUTE_CACHE_KEY)||'{}'),v=all[key];
+  if(v&&Date.now()-v.ts<CD_ROUTE_CACHE_TTL){cdRouteMemory.set(key,v);return v.value}
+  if(v){delete all[key];localStorage.setItem(CD_ROUTE_CACHE_KEY,JSON.stringify(all))}
+ }catch(e){}
  return null;
 }
 function cdWriteRouteCache(key,value){
  if(!key||!value)return;
  const item={ts:Date.now(),value};cdRouteMemory.set(key,item);
- try{const all=JSON.parse(localStorage.getItem(CD_ROUTE_CACHE_KEY)||'{}');all[key]=item;const keys=Object.keys(all).sort((a,b)=>(all[b]?.ts||0)-(all[a]?.ts||0)).slice(0,12),keep={};keys.forEach(k=>keep[k]=all[k]);localStorage.setItem(CD_ROUTE_CACHE_KEY,JSON.stringify(keep))}catch(e){}
+ try{
+  const all=JSON.parse(localStorage.getItem(CD_ROUTE_CACHE_KEY)||'{}');
+  all[key]=item;
+  const keys=Object.keys(all).sort((a,b)=>(all[b]?.ts||0)-(all[a]?.ts||0)).slice(0,12),keep={};
+  keys.forEach(k=>keep[k]=all[k]);
+  localStorage.setItem(CD_ROUTE_CACHE_KEY,JSON.stringify(keep));
+ }catch(e){}
 }
 async function cdFetchWithTimeout(url,options={},timeoutMs=CD_ROUTE_BASE_TIMEOUT){
  const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),timeoutMs);
@@ -600,10 +614,48 @@ async function cdComputeRouteBase(x){
  const u='https://router.project-osrm.org/route/v1/driving/'+x.o.lon+','+x.o.lat+';'+x.d.lon+','+x.d.lat+'?overview=full&geometries=geojson&steps=false';
  const r=await cdFetchWithTimeout(u,{headers:{'Accept':'application/json'}},CD_ROUTE_BASE_TIMEOUT),j=await r.json();
  if(!r.ok||j.code!=='Ok'||!j.routes?.[0]?.geometry?.coordinates?.length)throw new Error('No road route returned');
- const rt=j.routes[0];return{geometry:rt.geometry,distanceKm:Number(rt.distance)/1000,durationMin:Math.round(Number(rt.duration)/60),infra:null,support:null,ready:false};
+ const rt=j.routes[0];
+ return{geometry:rt.geometry,distanceKm:Number(rt.distance)/1000,durationMin:Math.round(Number(rt.duration)/60),infra:null,support:null,ready:false,updatedAt:Date.now()};
 }
 async function cdGetRouteBase(x){
- const key=cdRouteKey(x);if(!key)throw new Error(function cdApplyDashboardRoute(x,result,marker,googleUrl){
+ const key=cdRouteKey(x);if(!key)throw new Error('Route coordinates unavailable');
+ const cached=cdReadRouteCache(key);if(cached?.geometry)return cached;
+ if(cdRouteInflight.has(key))return cdRouteInflight.get(key);
+ const p=cdComputeRouteBase(x).then(base=>{cdWriteRouteCache(key,base);return base}).finally(()=>cdRouteInflight.delete(key));
+ cdRouteInflight.set(key,p);return p;
+}
+async function cdEnrichRouteIntelligence(x,base){
+ const key=cdRouteKey(x);if(!key)return base;
+ const cached=cdReadRouteCache(key);
+ if(cached?.ready&&cached.infra&&cached.support)return cached;
+ if(cdRouteEnrichInflight.has(key))return cdRouteEnrichInflight.get(key);
+ const p=(async()=>{
+  try{
+   const [infra,support]=await Promise.all([
+    cdRouteInfrastructure(base.geometry.coordinates),
+    cdRouteSupportCounts(base.geometry.coordinates)
+   ]);
+   const result={...base,infra,support,ready:true,updatedAt:Date.now()};
+   cdWriteRouteCache(key,result);
+   return result;
+  }catch(e){
+   console.debug('Route enrichment skipped',e?.message||e);
+   return base;
+  }
+ })().finally(()=>cdRouteEnrichInflight.delete(key));
+ cdRouteEnrichInflight.set(key,p);return p;
+}
+async function cdGetRouteIntelligence(x){
+ const base=await cdGetRouteBase(x);
+ if(base.ready&&base.infra&&base.support)return base;
+ return cdEnrichRouteIntelligence(x,base);
+}
+function cdRouteBaseDetailHtml(row,result,googleUrl){
+ const km=Number(result.distanceKm).toFixed(0),mins=Math.round(result.durationMin);
+ return '<b>Route:</b> '+esc(row.origin||'Pickup')+' → '+esc(row.destination||'Destination')+'<br><b>Load:</b> '+esc(row.commodity||'Cargo')+' · '+cdLoadTypeLabel(row.load_type)+' · '+cdLoadCategoryLabel(row.load_category)+'<br><b>Road distance:</b> '+esc(km)+' km · approx. '+esc(mins)+' min driving<hr style="border:0;border-top:1px solid #e5e7eb;margin:8px 0"><b>Route intelligence:</b> updating in background.<br><small>Distance and route are ready. Tolls, borders, fuel stations and roadside assistance will update automatically.</small><br><a class="btn primary" style="display:inline-block;margin-top:8px;text-decoration:none" href="'+googleUrl+'" target="_blank" rel="noopener">Open this route in Google Maps</a>';
+}
+
+function cdApplyDashboardRoute(x,result,marker,googleUrl){
  const km=Number(result.distanceKm).toFixed(0),mins=Math.round(result.durationMin);
  if(cdSelectedRouteLayer){try{window.cdDashMap.removeLayer(cdSelectedRouteLayer)}catch(e){}}
  cdSelectedRouteLayer=L.geoJSON(result.geometry,{style:{color:'#16a56b',weight:5,opacity:.82}}).addTo(window.cdDashMap);
