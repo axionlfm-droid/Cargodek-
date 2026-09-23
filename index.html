@@ -304,20 +304,31 @@ function renderRoleSwitcher(){const s=$('roleSwitcher');if(roles.length>1){s.cla
 function nav(items){$('sidebar').innerHTML=items.map((x,i)=>`<button class="nav ${i===0?'active':''}" data-page="${x[0]}">${x[1]}</button>`).join('');document.querySelectorAll('.nav').forEach(b=>b.onclick=()=>showPage(b.dataset.page))}
 function renderShell(){
  const items=[['dashboard','⌂  Command Centre']];
- if(roleHas('shipper','freight_broker','transporter'))items.push(['loads','▣  Find Loads']);
- if(roleHas('shipper','freight_broker'))items.push(['post','＋  Post a Load'],['connections','⇄  Transporter Requests']);
- if(roleHas('transporter'))items.push(['connections','⇄  My Requests'],['active','▣  Active Jobs'],['completed','✓  Completed'],['fleet','▤  Fleet & Assets']);
- if(roleHas('fleet_hire','roadside_assistance','equipment_hire','asset_sales'))items.push(['assets','▤  Fleet & Asset Verification']);
- if(roleHas('fuel_supplier','fuel_buyer'))items.push(['fuel','⛽  Fuel Marketplace']);
- items.push(['marketplace','▦  Marketplace'],['map','⌖  Logistics Map'],['news','✦  Intelligence'],['services','⚒  Services']);
- if(roleHas('truck_stop'))items.push(['truckstops','▣  Truck Stops']);
- if(roleHas('retail_fuel_supplier','fuel_supplier'))items.push(['retailfuel','⛽  Retail Fuel']);
- items.push(['messages','✉  Messages'],['notifications','♢  Notifications'],['company','▤  My Company'],['verification','✓  Verification'],['roles','◈  Roles & Compatibility'],['prices','⛽  Fuel Prices'],['reviews','★  Reputation'],['reports','⚑  Report Activity'],['subscription','◫  Subscription']);
- if(roleHas('freight_broker'))items.push(['mandates','▤  Broker Mandates']);
- if(isAdmin)items.push(['adminai','✦  Admin Intelligence']);
+ const add=(id,label)=>items.push([id,label]);
+ if(roleHas('shipper')){
+   add('loads','▣  Find Loads');add('post','＋  Post a Load');add('connections','⇄  Transporter Requests');add('active','▣  Active Shipments');add('completed','✓  Completed');
+ }
+ if(roleHas('freight_broker')){
+   add('mandates','▤  Broker Mandates');add('loads','▣  Find Loads');add('post','＋  Post a Load');add('connections','⇄  Transporter Requests');add('active','▣  Active Jobs');add('completed','✓  Completed');
+ }
+ if(roleHas('transporter')){
+   add('loads','▣  Find Loads');add('connections','⇄  My Requests');add('active','▣  Active Jobs');add('completed','✓  Completed');add('fleet','▤  Fleet & Assets');
+ }
+ if(roleHas('fleet_hire')){add('assets','▤  Fleet & Asset Verification');add('services','⚒  Hire Services');add('marketplace','▦  Marketplace');}
+ if(roleHas('fuel_supplier')){add('fuel','⛽  Fuel Marketplace');add('prices','⛽  Fuel Prices');}
+ if(roleHas('fuel_buyer')){add('fuel','⛽  Fuel Marketplace');add('prices','⛽  Fuel Prices');}
+ if(roleHas('retail_fuel_supplier')){add('retailfuel','⛽  My Fuel Stations');add('prices','⛽  Fuel Prices');}
+ if(roleHas('clearing_agent')){add('services','⚒  Clearing Services');add('map','⌖  Border & Route Map');}
+ if(roleHas('warehouse')){add('services','⚒  Storage Services');add('map','⌖  Logistics Map');}
+ if(roleHas('roadside_assistance')){add('assets','▤  Fleet & Asset Verification');add('services','⚒  Roadside Services');add('map','⌖  Route Support Map');}
+ if(roleHas('equipment_hire')){add('assets','▤  Fleet & Asset Verification');add('services','⚒  Equipment Hire');add('map','⌖  Logistics Map');}
+ if(roleHas('asset_sales')){add('assets','▤  Fleet & Asset Verification');add('services','⚒  Asset Services');add('marketplace','▦  Marketplace');}
+ if(roleHas('truck_stop')){add('truckstops','▣  Truck Stop');add('prices','⛽  Fuel Prices');add('map','⌖  Route Visibility');}
+ add('marketplace','▦  Marketplace');add('map','⌖  Logistics Map');add('news','✦  Intelligence');add('messages','✉  Messages');add('notifications','♢  Notifications');
+ add('company','▤  My Company');add('verification','✓  Verification');add('reviews','★  Reputation');add('reports','⚑  Report Activity');add('subscription','◫  Subscription');add('roles','◈  Roles & Compatibility');
+ if(isAdmin)add('adminai','✦  Admin Intelligence');
  const seen=new Set();nav(items.filter(x=>!seen.has(x[0])&&(seen.add(x[0]),true)));
-}
-function showPage(id){
+}function showPage(id){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   const p=$(id);if(p)p.classList.add('active');
   document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===id));
