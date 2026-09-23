@@ -563,10 +563,10 @@ async function initDashboardMap(){
  const lr=await sb.from('cargodek_public_loads_map').select('*').order('created_at',{ascending:false}).limit(500);
  if(!lr.error)for(const x of lr.data||[]){
    const o=resolveMapPoint(x.origin_latitude,x.origin_longitude,x.origin,x.origin_country),d=resolveMapPoint(x.destination_latitude,x.destination_longitude,x.destination,x.destination_country);
-   const h=\`<b>\${esc(x.commodity||'Load')}</b><br>\${esc(x.origin||'')} → \${esc(x.destination||'')}<br><span class="small">\${esc(x.load_type||'')} • \${esc(x.status||'open')} • Public listing</span>\`;
+   const h=`<b>${esc(x.commodity||'Load')}</b><br>${esc(x.origin||'')} → ${esc(x.destination||'')}<br><span class="small">${esc(x.load_type||'')} • ${esc(x.status||'open')} • Public listing</span>`;
    cdMapLoadIndex[x.id]={row:x,o,d};
    if(o){
-     const marker=add(o.lat,o.lon,h+\`<br><span class="small">📍 Pickup · \${mapPointLabel(o)}</span><br><button class="btn primary" style="margin-top:7px;width:100%" onclick="cdRoadRoute('\${esc(x.id)}')">Show route intelligence</button>\`,'load');
+     const marker=add(o.lat,o.lon,h+`<br><span class="small">📍 Pickup · ${mapPointLabel(o)}</span><br><button class="btn primary" style="margin-top:7px;width:100%" onclick="cdRoadRoute('${esc(x.id)}')">Show route intelligence</button>`,'load');
      if(marker)marker.on('popupopen',()=>{cdMapLoadIndex[x.id]={row:x,o,d}});
      bounds.push([o.lat,o.lon]);
    }
