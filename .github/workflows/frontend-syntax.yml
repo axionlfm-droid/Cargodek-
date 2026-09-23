@@ -1,0 +1,37 @@
+name: CargoDek frontend syntax check
+
+on:
+  push:
+    paths:
+      - "index.html"
+      - ".github/workflows/frontend-syntax.yml"
+  pull_request:
+    paths:
+      - "index.html"
+      - ".github/workflows/frontend-syntax.yml"
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract and validate inline JavaScript
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const html = fs.readFileSync('index.html', 'utf8');
+          const scripts = [...html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/gi)]
+            .map(m => m[1])
+            .filter(Boolean);
+          if (!scripts.length) throw new Error('No inline JavaScript blocks found.');
+          fs.writeFileSync('/tmp/cargodek-inline.js', scripts.join('\\n;\\n'));
+          NODE
+          node --check /tmp/cargodek-inline.js
