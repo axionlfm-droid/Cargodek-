@@ -624,7 +624,8 @@ async function initDashboardMap(){
  if(bounds.length)window.cdDashMap.fitBounds(bounds,{padding:[35,35],maxZoom:7});
  setTimeout(()=>window.cdDashMap&&window.cdDashMap.invalidateSize(),200)
 }
- cdWarmRouteCache(cdMapLoadIndex,8);\nfunction ownLoadIds(){return myLoads.map(l=>l.id)}
+ cdWarmRouteCache(cdMapLoadIndex,8);
+function ownLoadIds(){return myLoads.map(l=>l.id)}
 function renderLoads(){
  const q=($('fSearch')?.value||'').toLowerCase(),o=($('fOrigin')?.value||'').toLowerCase(),d=($('fDestination')?.value||'').toLowerCase(),c=($('fCommodity')?.value||'').toLowerCase(),date=$('fDate')?.value||'';
  let a=loads.filter(l=>l.status==='open'&&(!q||`${l.commodity} ${l.origin} ${l.destination}`.toLowerCase().includes(q))&&(!o||String(l.origin||'').toLowerCase().includes(o))&&(!d||String(l.destination||'').toLowerCase().includes(d))&&(!c||String(l.commodity||'').toLowerCase().includes(c))&&(!date||l.loading_date===date));
@@ -1184,7 +1185,8 @@ async function loadMapData(){
  for(const x of mr.data||[]){const q=resolveMapPoint(x.latitude,x.longitude,x.city,x.country);const k=x.layer_key==='fuel'?'fuel':x.layer_key==='truckstops'?'truckstops':x.layer_key==='warehouses'?'warehouses':x.layer_key==='equipment'?'equipment':'services';if(q)add(q.lat,q.lon,'<b>'+esc(x.name||x.location_type||'CargoDek location')+'</b><br>'+esc(x.city||'')+', '+esc(x.country||'')+'<br><small>'+esc(x.location_type||k)+' · User listing</small>',k)}
  if(bounds.length)cdMap.fitBounds(bounds,{padding:[35,35],maxZoom:7});setTimeout(()=>cdMap&&cdMap.invalidateSize(),200)
 }
- cdWarmRouteCache(cdPublicMapLoadIndex,8);\nasync function renderServices(){
+ cdWarmRouteCache(cdPublicMapLoadIndex,8);
+async function renderServices(){
  const box=$('serviceContent'); if(!box)return;
  const roleTypes=['fleet_hire','clearing_agent','warehouse','roadside_assistance','equipment_hire','asset_sales'];
  const activeRoles=roles.filter(r=>roleTypes.includes(r));
