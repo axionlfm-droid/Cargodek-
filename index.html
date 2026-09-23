@@ -155,6 +155,14 @@ aside .nav{color:#c6d4e4;padding:12px 14px;border-radius:10px;margin-bottom:5px}
 .cd-photo-preview img{width:108px;height:80px;object-fit:cover;border-radius:6px;display:block;margin-bottom:4px}
 .cd-photo-preview span{font-size:10px;color:var(--cd-muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:650px){.cd-load-location-map{height:250px}.cd-photo-preview{width:105px}.cd-photo-preview img{width:93px;height:70px}}
+</style><style>
+.cd-social-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,.8fr);gap:16px}
+.cd-post{border:1px solid var(--cd-border);border-radius:14px;background:#fff;padding:16px;margin-bottom:12px;box-shadow:var(--cd-shadow)}
+.cd-post-head{display:flex;justify-content:space-between;gap:10px}.cd-post-company{display:flex;gap:10px;align-items:center}.cd-post-avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#eaf2ff;color:#1769e0;font-weight:800}
+.cd-post-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.cd-post-actions button{background:#f5f7fa;border:1px solid var(--cd-border);border-radius:8px;padding:8px 10px;font-size:12px}.cd-post-actions button.active{background:#eaf7f0;color:#167047;border-color:#bfe8d2}
+.cd-promoted{border-left:4px solid var(--cd-orange)}.cd-asset-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.cd-route-panel{min-height:130px}.cd-route-panel .route-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.cd-route-panel .route-kpi{background:#f6f9fc;border-radius:9px;padding:9px}.cd-route-panel .route-kpi b{display:block;font-size:17px;margin-top:3px}
+@media(max-width:900px){.cd-social-grid{grid-template-columns:1fr}.cd-asset-grid{grid-template-columns:1fr}.cd-route-panel .route-kpis{grid-template-columns:1fr 1fr}}
 </style></head>
 <body>
 <div id="authView" class="auth"><div class="auth-box">
@@ -228,7 +236,7 @@ aside .nav{color:#c6d4e4;padding:12px 14px;border-radius:10px;margin-bottom:5px}
 <section id="subscription" class="page"><div class="hero"><div><h1>Subscription</h1><p>Your first month is free. Paid plans can be activated when payments are connected.</p></div></div><div class="sub-grid"><div class="plan"><h3>Free Trial</h3><div class="amount">30 days</div><p class="small">Access during the launch trial period.</p></div><div class="plan featured"><h3>Monthly</h3><div class="amount">R250</div><p class="small">Per month. Launch price.</p></div><div class="plan"><h3>Annual</h3><div class="amount">R1,250</div><p class="small">Per year. Launch price.</p></div></div><div class="card" style="margin-top:14px"><b id="subInfo"></b></div></section>
 <section id="active" class="page"><div class="hero"><div><h1>Active Jobs & Loads</h1><p>Monitor accepted transport activity currently in progress.</p></div></div><div id="activeContent"></div></section>
 <section id="completed" class="page"><div class="hero"><div><h1>Completed Loads</h1><p>Completed transport activity and delivery history.</p></div></div><div id="completedContent"></div></section>
-<section id="fleet" class="page"><div class="hero"><div><h1>Fleet Management</h1><p>Manage your company vehicles and transporter readiness.</p></div><button class="btn primary" onclick="openTruckModal()">+ Add Truck</button></div><div id="fleetContent"></div></section>
+<section id="fleet" class="page"><div class="hero"><div><h1>Fleet Management</h1><p>Manage your company vehicles and transporter readiness.</p></div><button class="btn primary" onclick="openTruckModal()">+ Add Truck</button></div><div id="fleetContent"></div></section><section id="assets" class="page"><div class="hero"><div><h1>Fleet & Asset Verification</h1><p>Register trucks, trailers, recovery vehicles and equipment for CargoDek verification.</p></div><button class="btn primary" onclick="openAssetModal()">+ Add Asset</button></div><div id="assetNotice"></div><div id="assetContent"></div></section>
 <section id="mandates" class="page"><div class="hero"><div><h1>Broker Mandates</h1><p>Private client mandates and Letters of Authority.</p></div></div><div id="mandatesContent"></div></section>
 <section id="reviews" class="page"><div class="hero"><div><h1>Reputation & Reviews</h1><p>Build trust through completed transactions and two-way reviews.</p></div></div><div id="reviewsContent"></div></section>
 <section id="reports" class="page"><div class="hero"><div><h1>Reports</h1><p>Report suspicious, misleading or non-compliant marketplace activity.</p></div></div><div class="card"><form id="reportForm"><div class="form-grid"><div class="field"><label>User / company / listing reference</label><input id="reportUser" required placeholder="User, company or listing reference"></div><div class="field"><label>Reason</label><select id="reportReason"><option>Misrepresentation</option><option>Fraud concern</option><option>Spam</option><option>Harassment</option><option>Other</option></select></div><div class="field full"><label>Details</label><textarea id="reportDetails" required></textarea></div></div><button class="btn primary">Submit Report</button></form></div><div id="reportsContent" style="margin-top:14px"></div></section>
@@ -298,7 +306,8 @@ function renderShell(){
  const items=[['dashboard','⌂  Command Centre']];
  if(roleHas('shipper','freight_broker','transporter'))items.push(['loads','▣  Find Loads']);
  if(roleHas('shipper','freight_broker'))items.push(['post','＋  Post a Load'],['connections','⇄  Transporter Requests']);
- if(roleHas('transporter'))items.push(['connections','⇄  My Requests'],['active','▣  Active Jobs'],['completed','✓  Completed'],['fleet','▤  Fleet']);
+ if(roleHas('transporter'))items.push(['connections','⇄  My Requests'],['active','▣  Active Jobs'],['completed','✓  Completed'],['fleet','▤  Fleet & Assets']);
+ if(roleHas('fleet_hire','roadside_assistance','equipment_hire','asset_sales'))items.push(['assets','▤  Fleet & Asset Verification']);
  if(roleHas('fuel_supplier','fuel_buyer'))items.push(['fuel','⛽  Fuel Marketplace']);
  items.push(['marketplace','▦  Marketplace'],['map','⌖  Logistics Map'],['news','✦  Intelligence'],['services','⚒  Services']);
  if(roleHas('truck_stop'))items.push(['truckstops','▣  Truck Stops']);
@@ -312,7 +321,7 @@ function showPage(id){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   const p=$(id);if(p)p.classList.add('active');
   document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===id));
-  const fn={dashboard:renderDashboard,loads:renderLoads,post:renderPost,connections:renderConnections,active:renderActive,completed:renderCompleted,fleet:renderFleet,fuel:()=>fuelTab('buy'),services:renderServices,truckstops:renderTruckStops,retailfuel:renderRetailFuel,marketplace:renderMarketplace,notifications:renderNotifications,roles:renderRoleMatrix,messages:renderMessages,company:renderCompany,verification:renderVerification,subscription:renderSubscription,mandates:renderMandates,reviews:renderReviews,reports:renderReports,news:renderNews,prices:renderPrices,map:renderMap,adminai:renderAdminAI}[id];
+  const fn={dashboard:renderDashboard,loads:renderLoads,post:renderPost,connections:renderConnections,active:renderActive,completed:renderCompleted,fleet:renderFleet,fuel:()=>fuelTab('buy'),services:renderServices,truckstops:renderTruckStops,retailfuel:renderRetailFuel,marketplace:renderMarketplace,notifications:renderNotifications,roles:renderRoleMatrix,messages:renderMessages,company:renderCompany,verification:renderVerification,subscription:renderSubscription,mandates:renderMandates,reviews:renderReviews,reports:renderReports,news:renderNews,prices:renderPrices,map:renderMap,assets:renderAssets,adminai:renderAdminAI}[id];
   if(fn)Promise.resolve(fn()).catch(e=>{console.error('Page render failed',e);const target=$(id);if(target)target.innerHTML=`<div class="error">This section could not load. ${esc(e?.message||'Please try again.')}</div>`});
 }
 
@@ -493,7 +502,7 @@ async function finishOnboarding(){
  await loadContext();
  await refresh();
 }
-async function renderDashboard(){
+async async function renderDashboard(){
  const mine=myLoads||[], avail=(loads||[]).filter(l=>l.status==='open'), ownIds=ownLoadIds();
  const verified=company?.verification_status==='verified';
  const unread=(messages||[]).filter(m=>m.recipient_user_id===currentUser?.id && !m.read_at).length;
@@ -513,9 +522,9 @@ async function renderDashboard(){
    <div class="cd-metric"><div class="cd-metric-top"><span class="label">Completed</span><span class="cd-icon cd-cyan">✓</span></div><div class="value">${completed}</div><div class="delta">Your completed activity</div></div>
   </div>
   <div class="cd-dash-grid">
-   <div class="card cd-map-card"><div class="cd-map-head">Africa Logistics Network</div><div id="cdDashMap" class="cd-dash-map"></div><div class="cd-map-legend"><span>🟢 Loads</span><span>🔵 Fuel</span><span>🟣 Services</span><span>🟠 Facilities</span><span>✓ Verified + unverified active listings</span></div></div>
+   <div class="card cd-map-card"><div class="cd-map-head">Africa Logistics Network</div><div id="cdDashMap" class="cd-dash-map"></div><div class="cd-map-legend"><span>🟢 Loads</span><span>🔵 Fuel</span><span>🟣 Services</span><span>🟠 Facilities</span><span>✓ Click a load marker for destination + route intelligence</span></div></div>
    <div class="cd-side-stack">
-    <div class="card"><div class="cd-panel-title"><h3>Live Route Information</h3><button class="btn secondary" onclick="showPage('map')">Open Map</button></div><div class="cd-list"><div class="cd-list-item"><div><div class="cd-route">Johannesburg → Harare</div><div class="cd-sub">Route intelligence available when route data is sourced</div></div><span class="badge green">Monitor</span></div><div class="cd-list-item"><div><div class="cd-route">Beira → Lubumbashi</div><div class="cd-sub">Cross-border corridor</div></div><span class="badge gold">Border</span></div><div class="cd-list-item"><div><div class="cd-route">Matola → Gaborone</div><div class="cd-sub">Cross-border corridor</div></div><span class="badge">Cross-border</span></div></div></div>
+    <div class="card cd-route-panel"><div class="cd-panel-title"><h3>Map Route Intelligence</h3><button class="btn secondary" onclick="showPage('map')">Open Map</button></div><div id="cdDashRouteIntel" class="small">Select a load marker on the Command Centre map. CargoDek will show the destination, road distance, route line, tolls, borders, fuel stations and roadside assistance along the route.</div><div class="cd-list" style="margin-top:10px"><div class="cd-list-item"><div><div class="cd-route">Johannesburg → Harare</div><div class="cd-sub">Route intelligence available when route data is sourced</div></div><span class="badge green">Monitor</span></div><div class="cd-list-item"><div><div class="cd-route">Beira → Lubumbashi</div><div class="cd-sub">Cross-border corridor</div></div><span class="badge gold">Border</span></div><div class="cd-list-item"><div><div class="cd-route">Matola → Gaborone</div><div class="cd-sub">Cross-border corridor</div></div><span class="badge">Cross-border</span></div></div></div>
     <div class="card"><div class="cd-panel-title"><h3>Fuel Prices (SADC cache)</h3><button class="btn secondary" onclick="showPage('prices')">View all</button></div>${priceRows.length?priceRows.slice(0,4).map(p=>`<div class="cd-price-row"><span>${esc(p.country||'—')} · ${esc(p.product||'—')}</span><b>${money(p.price,p.currency||'')}</b></div>`).join(''):'<div class="empty">No verified price data currently available.</div>'}<div class="cd-source-note" style="margin-top:8px">Prices show source and effective date; delayed data is never presented as live.</div></div>
    </div>
   </div>
@@ -550,28 +559,46 @@ function cdShowDashboardDestination(x){
  cdSelectedDestinationMarker.bindPopup(cdMapPopup('Destination intelligence','<b>'+esc(x.row.origin||'Pickup')+' → '+esc(x.row.destination||'Destination')+'</b><br><span class="small">Calculating road distance, tolls, borders, fuel stations and roadside assistance…</span>')).openPopup();
  return cdSelectedDestinationMarker;
 }
+function cdDashRoutePanel(html){const el=$('cdDashRouteIntel');if(el)el.innerHTML=html}
+function cdShowDashboardDestination(x){
+ if(!x?.d||!window.cdDashMap)return null;
+ if(cdSelectedDestinationMarker){try{window.cdDashMap.removeLayer(cdSelectedDestinationMarker)}catch(e){}}
+ cdSelectedDestinationMarker=L.marker([x.d.lat,x.d.lon],{zIndexOffset:900}).addTo(window.cdDashMap);
+ cdSelectedDestinationMarker.bindTooltip('Selected destination',{direction:'top'});
+ const loading='<b>'+esc(x.row.origin||'Pickup')+' → '+esc(x.row.destination||'Destination')+'</b><div class="small" style="margin-top:6px">Calculating road distance, tolls, borders, fuel stations and roadside assistance…</div>';
+ cdDashRoutePanel(loading);
+ cdSelectedDestinationMarker.bindPopup(cdMapPopup('Destination intelligence',loading)).openPopup();
+ return cdSelectedDestinationMarker;
+}
 async function cdRoadRoute(loadId){
+ const seq=(window.cdDashRouteSeq||0)+1;window.cdDashRouteSeq=seq;
  const x=cdMapLoadIndex[loadId];if(!x||!x.o||!x.d||!window.cdDashMap)return;
  if(cdSelectedRouteLayer){try{window.cdDashMap.removeLayer(cdSelectedRouteLayer)}catch(e){}cdSelectedRouteLayer=null}
  cdSelectedLoadId=loadId;
- const marker=cdShowDashboardDestination(x);
- const g=cdGoogleMapsDirectionsUrl(x.o,x.d);
+ const marker=cdShowDashboardDestination(x),g=cdGoogleMapsDirectionsUrl(x.o,x.d);
  await new Promise(r=>setTimeout(r,0));
  try{
    const u='https://router.project-osrm.org/route/v1/driving/'+x.o.lon+','+x.o.lat+';'+x.d.lon+','+x.d.lat+'?overview=full&geometries=geojson&steps=false';
    const r=await fetch(u,{headers:{'Accept':'application/json'}});
    const j=await r.json();
+   if(seq!==window.cdDashRouteSeq)return;
    if(!r.ok||j.code!=='Ok'||!j.routes?.[0]?.geometry?.coordinates?.length)throw new Error('No road route returned');
    const rt=j.routes[0],km=(+rt.distance/1000).toFixed(0),mins=Math.round(+rt.duration/60);
    cdSelectedRouteLayer=L.geoJSON(rt.geometry,{style:{color:'#16a56b',weight:5,opacity:.82}}).addTo(window.cdDashMap);
    window.cdDashMap.fitBounds(cdSelectedRouteLayer.getBounds(),{padding:[45,45],maxZoom:10});
+   const progress='<b>'+esc(x.row.origin||'Pickup')+' → '+esc(x.row.destination||'Destination')+'</b><div class="route-kpis"><div class="route-kpi"><span class="small">Road distance</span><b>'+esc(km)+' km</b></div><div class="route-kpi"><span class="small">Drive time</span><b>'+esc(String(Math.round(mins/60)))+' h</b></div><div class="route-kpi"><span class="small">Status</span><b>Loading</b></div></div><div class="small" style="margin-top:8px">Checking tolls, border posts, fuel stations and roadside assistance along the route…</div>';
+   cdDashRoutePanel(progress);
    if(marker)marker.bindPopup(cdMapPopup('Destination intelligence','<b>'+esc(x.row.origin||'Pickup')+' → '+esc(x.row.destination||'Destination')+'</b><br><b>Road distance:</b> '+esc(km)+' km<br><span class="small">Loading toll, border, fuel and roadside information…</span>')).openPopup();
    const [inf,sup]=await Promise.all([cdRouteInfrastructure(rt.geometry.coordinates),cdRouteSupportCounts(rt.geometry.coordinates)]);
+   if(seq!==window.cdDashRouteSeq)return;
    const detail=cdRouteDetailHtml(x.row,km,mins,inf,sup,g);
+   cdDashRoutePanel(detail);
    if(cdSelectedRouteLayer)cdSelectedRouteLayer.bindPopup(cdMapPopup('Likely road route',detail));
    if(marker)marker.bindPopup(cdMapPopup('Destination intelligence',detail)).openPopup();
  }catch(e){
+   if(seq!==window.cdDashRouteSeq)return;
    console.warn('CargoDek route intelligence failed',e);
+   cdDashRoutePanel('<div class="error">CargoDek could not calculate the road distance right now.</div><a class="btn primary" style="display:inline-block;margin-top:7px;text-decoration:none" href="'+g+'" target="_blank" rel="noopener">Open route in Google Maps</a>');
    if(marker)marker.bindPopup(cdMapPopup('Destination',esc(x.row.destination||'Destination')+'<br><span class="small">CargoDek could not calculate the road distance right now.</span><br><a class="btn primary" style="display:inline-block;margin-top:7px;text-decoration:none" href="'+g+'" target="_blank" rel="noopener">Open route in Google Maps</a>')).openPopup();
  }
 }
@@ -813,6 +840,20 @@ async function saveTruck(){
  closeModal();await fetchTrucks();renderFleet();alert('Truck added successfully.');
 }
 function renderFleet(){$('fleetContent').innerHTML=trucks.map(t=>`<div class="card"><div class="row"><div><h3>${esc(t.registration_number)}</h3><div class="small">${esc(t.truck_type||'Truck')} • ${esc(t.make_model||'')}</div></div><span class="badge green">Active</span></div><div class="meta"><span class="badge">Tracker ${t.tracker_confirmed?'✓':'—'}</span><span class="badge">GIT ${t.git_confirmed?'✓':'—'}</span></div></div>`).join('')||'<div class="empty">No trucks added yet.</div>'}
+async function renderAssets(){
+ const box=$('assetContent');if(!box)return;
+ if(!company||!currentUser){box.innerHTML='<div class="empty">Complete company onboarding first.</div>';return}
+ const r=await sb.from('cd_company_assets').select('*').eq('company_id',company.id).order('created_at',{ascending:false});
+ if(r.error){box.innerHTML='<div class="error">Asset verification could not load: '+esc(r.error.message)+'</div>';return}
+ const rows=r.data||[];
+ box.innerHTML='<div class="card" style="margin-bottom:12px"><div class="cd-panel-title"><h3>Verification-ready asset register</h3><span class="badge">'+rows.length+' assets</span></div><p class="small">Add every truck, trailer, recovery vehicle or equipment item you want CargoDek to associate with your business. Upload supporting registration, ownership, insurance, licensing or equipment documents in the same flow.</p></div><div class="cd-asset-grid">'+(rows.map(x=>'<div class="card"><div class="row"><div><b>'+esc(x.registration_number||x.make_model||x.subtype||'Asset')+'</b><div class="small">'+esc((x.asset_type||'asset').replaceAll('_',' '))+' · '+esc(x.make_model||'')+'</div></div><span class="badge '+(x.verification_status==='verified'?'green':'gold')+'">'+esc(x.verification_status)+'</span></div><div class="meta">'+(x.subtype?'<span class="badge">'+esc(x.subtype)+'</span>':'')+(x.capacity?'<span class="badge">'+esc(x.capacity)+'</span>':'')+(x.country?'<span class="badge">'+esc(x.country)+'</span>':'')+'</div><p class="small">'+esc(x.description||'No description provided.')+'</p></div>').join('')||'<div class="empty">No assets have been registered yet.</div>')+'</div>';
+}
+function openAssetModal(){
+ if(!company||!currentUser)return alert('Complete company onboarding first.');
+ if(!roleHas('transporter','fleet_hire','roadside_assistance','equipment_hire','asset_sales'))return alert('An asset-compatible role is required.');
+ openModal('Add fleet / equipment asset','<form id="assetForm"><div class="form-grid"><div class="field"><label>Asset type</label><select name="asset_type"><option value="truck">Truck</option><option value="trailer">Trailer</option><option value="truck_trailer_combination">Truck + Trailer Combination</option><option value="recovery_vehicle">Recovery Vehicle</option><option value="equipment">Equipment</option><option value="other">Other</option></select></div><div class="field"><label>Subtype</label><input name="subtype" placeholder="Side tipper, tanker, lowbed, crane, forklift..."></div><div class="field"><label>Registration / serial number</label><input name="registration_number" required></div><div class="field"><label>Make / model</label><input name="make_model"></div><div class="field"><label>Year</label><input name="year" type="number" min="1900" max="2100"></div><div class="field"><label>Capacity</label><input name="capacity" placeholder="34 tons, 45,000 L, 10 ton lift..."></div><div class="field"><label>Condition</label><select name="condition"><option>Good</option><option>Excellent</option><option>Fair</option><option>New</option><option>Needs maintenance</option></select></div><div class="field"><label>Location</label><input name="location" placeholder="City / depot"></div><div class="field"><label>Country</label><input name="country" value="'+esc(company.country||'South Africa')+'"></div><div class="field full"><label>Description</label><textarea name="description" maxlength="1500"></textarea></div><div class="field"><label>Registration / ownership document</label><input name="registration_doc" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></div><div class="field"><label>Insurance / licence / supporting document</label><input name="support_doc" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></div></div><div class="notice">The asset starts as <b>pending</b>. CargoDek administrators verify the submitted evidence before showing a verified status.</div><button class="btn primary">Register asset</button></form>');
+ $('assetForm').onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(e.target).entries());try{const r=await sb.from('cd_company_assets').insert({company_id:company.id,owner_user_id:currentUser.id,asset_type:o.asset_type,subtype:o.subtype||null,registration_number:o.registration_number.trim(),make_model:o.make_model||null,year:o.year?Number(o.year):null,capacity:o.capacity||null,condition:o.condition||null,location:o.location||null,country:o.country||null,description:o.description||null,verification_status:'pending'}).select('id').single();if(r.error)throw r.error;for(const [name,type] of [['registration_doc','registration'],['support_doc','supporting']]){const file=e.target.elements[name].files?.[0];if(!file)continue;const path=await uploadPrivateDocument(file,'assets/'+r.data.id);const dr=await sb.from('cd_asset_documents').insert({asset_id:r.data.id,company_id:company.id,uploaded_by:currentUser.id,document_type:type,storage_path:path,status:'pending'});if(dr.error)throw dr.error}closeModal();await renderAssets();alert('Asset registered and submitted for verification.')}catch(err){alert('Asset could not be registered: '+(err.message||err))}};
+}
 function fuelTab(tab){
  const box=$('fuelContent'); if(!box)return;
  if(tab==='sell'&&roleHas('fuel_supplier')){
@@ -981,8 +1022,57 @@ async function submitVerification(){
  }catch(e){alert('Verification upload failed: '+(e.message||'Unknown error'))}
 }
 function renderSubscription(){$('subInfo').textContent=subscription?`Plan: ${subscription.plan} • Status: ${subscription.status}`:'No subscription record yet.'}
-async function renderMarketplace(){const r=await sb.from('cargodek_public_companies').select('*').limit(100);if(r.error){$('marketplaceContent').innerHTML='<div class="error">Marketplace could not be loaded: '+esc(r.error.message)+'</div>';return}const cs=r.data||[];const rr=await sb.from('company_roles').select('company_id,role').eq('active',true).in('company_id',cs.map(x=>x.id).filter(Boolean));const by={};(rr.data||[]).forEach(x=>(by[x.company_id]??=[]).push(x.role));const q=($('mpSearch')?.value||'').toLowerCase(),role=$('mpRole')?.value||'';const a=cs.filter(x=>(!q||`${x.trading_name||''} ${x.legal_name||''} ${x.country||''}`.toLowerCase().includes(q))&&(!role||(by[x.id]||[]).includes(role)));$('marketplaceContent').innerHTML=a.map(x=>`<div class="fuel-card"><span class="badge green">${esc(x.verification_status||'unverified')}</span><h3>${esc(x.trading_name||x.legal_name)}</h3><div class="small">${esc(x.country||'')}</div><div class="meta">${(by[x.id]||[]).map(z=>`<span class="badge">${esc(roleLabels[z]||z)}</span>`).join('')}</div></div>`).join('')||'<div class="empty">No companies found.</div>'}
-$('mpSearch')?.addEventListener('input',renderMarketplace);$('mpRole')?.addEventListener('change',renderMarketplace);
+async async function renderMarketplace(){
+ const box=$('marketplaceContent');if(!box)return;
+ const [pr,cr,lr,rr,ro]=await Promise.all([
+  sb.from('cd_social_posts').select('*').eq('status','published').order('created_at',{ascending:false}).limit(50),
+  sb.from('companies').select('id,trading_name,legal_name,country,verification_status'),
+  sb.from('cd_social_likes').select('post_id,user_id'),
+  sb.from('cd_social_comments').select('post_id'),
+  sb.from('cd_social_reposts').select('post_id,user_id')
+ ]);
+ if(pr.error){box.innerHTML='<div class="error">Marketplace feed could not be loaded: '+esc(pr.error.message)+'</div>';return}
+ const posts=pr.data||[],companies=cr.data||[],cmap=Object.fromEntries(companies.map(x=>[x.id,x]));
+ const likes={};(lr.data||[]).forEach(x=>(likes[x.post_id]??=[]).push(x.user_id));
+ const comments={};(rr.data||[]).forEach(x=>comments[x.post_id]=(comments[x.post_id]||0)+1);
+ const reposts={};(ro.data||[]).forEach(x=>reposts[x.post_id]=(reposts[x.post_id]||0)+1);
+ const q=($('mpSearch')?.value||'').toLowerCase();
+ const filtered=posts.filter(p=>{const co=cmap[p.company_id]||{};return !q||((p.body||'')+' '+(co.trading_name||co.legal_name||'')+' '+(co.country||'')).toLowerCase().includes(q)});
+ const composer='<div class="card" style="margin-bottom:14px"><div class="cd-panel-title"><h3>Advertise your business on CargoDek</h3><span class="badge green">Organic + promoted</span></div><p class="small">Publish company updates, transport capacity, fuel opportunities, services, equipment and business announcements. Likes, comments and reposts distribute your content. Promoted posts are the foundation for a future CargoDek advertising revenue stream and require administrator approval.</p><form id="cdPostForm"><div class="field"><textarea name="body" required maxlength="5000" placeholder="What does your company want the CargoDek network to know?"></textarea></div><div class="form-grid"><div class="field"><label>Post type</label><select name="post_type"><option value="business">Business</option><option value="announcement">Announcement</option><option value="opportunity">Opportunity</option><option value="article">Article</option><option value="image">Image / media</option><option value="video">Video</option></select></div><div class="field"><label>Media URL (optional)</label><input name="media_url" type="url" placeholder="https://..."></div></div><button class="btn primary">Publish to Marketplace</button></form></div>';
+ const feed=filtered.map(p=>{const co=cmap[p.company_id]||{},mine=(likes[p.id]||[]).includes(currentUser?.id);return '<article class="cd-post '+(p.is_promoted?'cd-promoted':'')+'"><div class="cd-post-head"><div class="cd-post-company"><div class="cd-post-avatar">'+esc((co.trading_name||co.legal_name||'C').slice(0,1).toUpperCase())+'</div><div><b>'+esc(co.trading_name||co.legal_name||'CargoDek Company')+'</b><div class="small">'+esc(co.country||'')+' · '+esc(p.post_type||'Business')+' · '+new Date(p.created_at).toLocaleString()+'</div></div></div>'+(p.is_promoted?'<span class="badge gold">Promoted</span>':'')+'</div><p style="white-space:pre-wrap;line-height:1.55;margin-bottom:6px">'+esc(p.body)+'</p>'+(p.media_url?'<a href="'+esc(p.media_url)+'" target="_blank" rel="noopener" class="small">View media ↗</a>':'')+'<div class="cd-post-actions"><button class="'+(mine?'active':'')+'" onclick="cdToggleLike(\''+esc(p.id)+'\')">♥ '+(likes[p.id]?.length||0)+'</button><button onclick="cdOpenComments(\''+esc(p.id)+'\')">▢ '+(comments[p.id]||0)+' Comments</button><button onclick="cdRepost(\''+esc(p.id)+'\')">↻ '+(reposts[p.id]||0)+' Repost</button>'+(p.company_id===company?.id?'<button onclick="cdRequestPromotion(\''+esc(p.id)+'\')">Promote</button>':'')+'</div></article>'}).join('');
+ box.innerHTML='<div class="cd-social-grid"><div><div class="filters"><input id="mpSearch" value="'+esc(q)+'" placeholder="Search posts, companies or countries"></div>'+composer+(feed||'<div class="empty">No marketplace posts yet. Publish your company introduction or first opportunity.</div>')+'</div><div><div class="card"><h3 style="margin-top:0">CargoDek Marketplace</h3><p class="small">A company discovery and social marketplace where businesses can advertise, publish opportunities and build reputation through network engagement.</p><div class="checklist"><div class="check">✓ Company advertising</div><div class="check">✓ Likes</div><div class="check">✓ Comments</div><div class="check">✓ Reposts</div><div class="check">✓ Promoted-post pipeline</div></div></div><div class="card"><h3 style="margin-top:0">Monetisation-ready</h3><p class="small">Promotion requests are stored with campaign state and budget fields so paid advertising can be connected to a billing provider later without redesigning the feed.</p></div></div></div>';
+ $('cdPostForm').onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(e.target).entries());const r=await sb.from('cd_social_posts').insert({company_id:company.id,author_user_id:currentUser.id,body:o.body.trim(),post_type:o.post_type,media_url:o.media_url.trim()||null,status:'published'});if(r.error)return alert('Post could not be published: '+r.error.message);await renderMarketplace()};
+ $('mpSearch').oninput=renderMarketplace;
+}
+async function cdToggleLike(postId){
+ const q=await sb.from('cd_social_likes').select('post_id').eq('post_id',postId).eq('user_id',currentUser.id).maybeSingle();
+ if(q.data){const r=await sb.from('cd_social_likes').delete().eq('post_id',postId).eq('user_id',currentUser.id);if(r.error)return alert(r.error.message)}
+ else {const r=await sb.from('cd_social_likes').insert({post_id:postId,company_id:company.id,user_id:currentUser.id});if(r.error)return alert(r.error.message)}
+ await renderMarketplace();
+}
+async function cdRepost(postId){
+ const q=await sb.from('cd_social_reposts').select('post_id').eq('post_id',postId).eq('user_id',currentUser.id).maybeSingle();
+ if(q.data)return alert('You already reposted this post.');
+ const r=await sb.from('cd_social_reposts').insert({post_id:postId,company_id:company.id,user_id:currentUser.id});
+ if(r.error)return alert('Repost failed: '+r.error.message);
+ await renderMarketplace();
+}
+async function cdOpenComments(postId){
+ const r=await sb.from('cd_social_comments').select('id,company_id,body,created_at').eq('post_id',postId).order('created_at',{ascending:true});
+ if(r.error)return alert(r.error.message);
+ const ids=[...new Set((r.data||[]).map(x=>x.company_id).filter(Boolean))];
+ const cr=ids.length?await sb.from('companies').select('id,trading_name,legal_name').in('id',ids):{data:[]};
+ const cm=Object.fromEntries((cr.data||[]).map(x=>[x.id,x]));
+ openModal('Comments','<div>'+(r.data||[]).map(x=>'<div class="card" style="margin-bottom:8px"><b>'+esc(cm[x.company_id]?.trading_name||cm[x.company_id]?.legal_name||'Company')+'</b><div class="small">'+new Date(x.created_at).toLocaleString()+'</div><p style="white-space:pre-wrap">'+esc(x.body)+'</p></div>').join('')||'<div class="empty">No comments yet.</div>'+'</div><form id="cdCommentForm" style="margin-top:12px"><div class="field"><label>Add comment</label><textarea name="body" required maxlength="2000"></textarea></div><button class="btn primary">Comment</button></form>');
+ $('cdCommentForm').onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(e.target).entries());const x=await sb.from('cd_social_comments').insert({post_id:postId,company_id:company.id,author_user_id:currentUser.id,body:o.body.trim()});if(x.error)return alert(x.error.message);closeModal();await renderMarketplace()};
+}
+async function cdRequestPromotion(postId){
+ if(company?.verification_status!=='verified')return alert('Company verification is required before requesting promoted advertising.');
+ const r=await sb.from('cd_social_posts').update({is_promoted:true,promotion_status:'pending'}).eq('id',postId).eq('company_id',company.id);
+ if(r.error)return alert('Promotion request failed: '+r.error.message);
+ alert('Promotion request submitted for administrator approval. Billing can be connected to this campaign workflow later.');
+ await renderMarketplace();
+}
 async function renderMandates(){
  const box=$('mandatesContent');if(!box)return;
  if(!company||!roleHas('freight_broker')){box.innerHTML='<div class="empty">Broker mandates are available to active freight brokers.</div>';return}
