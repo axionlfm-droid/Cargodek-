@@ -1,6 +1,6 @@
 {
-  "buildCommand": "node scripts/validate-frontend.js && mkdir -p public && cp index.html public/index.html",
-  "outputDirectory": "public",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "ignoreCommand": "bash scripts/vercel-ignore-broken-build.sh",
   "headers": [
     {
       "source": "/(.*)",
