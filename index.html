@@ -257,7 +257,7 @@ aside .nav{color:#c6d4e4;padding:12px 14px;border-radius:10px;margin-bottom:5px}
 
 <script>
 const SUPABASE_URL='https://rmyswyzzotvznteyqyym.supabase.co';
-const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJteXN3eXp6b3R2em50ZXlxeXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NzMyODgsImV4cCI6MjEwNDQ0OTI4OH0.-Q5dcRpCWrd0GxLFCL4WEkhKFmauy3alfcHs6Ok6hrA';
+const SUPABASE_KEY='sb_publishable_ln65f8S6tczPyivpLDUDZg_bKXOtenH';
 const sb=window.supabase&&typeof window.supabase.createClient==='function'?window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY):null;const $=id=>document.getElementById(id);
 function cdAuthDependencyError(){
  const msg='CargoDek could not load its Supabase authentication library. This is a browser/CDN loading problem, so the login request has not been sent.';
@@ -276,7 +276,77 @@ const money=(v,c='ZAR')=>v==null||v===''?'':`${esc(c)} ${Number(v).toLocaleStrin
 function roleHas(...r){return r.includes(currentRole)}
 function setAuthMode(mode){$('authTitle').textContent=mode==='signup'?'Create account':'Sign in';$('authSubmit').textContent=mode==='signup'?'Create account':'Sign in';$('signupFields').classList.toggle('hidden',mode!=='signup');$('loginTab').className='btn '+(mode==='login'?'primary':'secondary');$('signupTab').className='btn '+(mode==='signup'?'primary':'secondary');$('authForm').dataset.mode=mode}
 $('loginTab').onclick=()=>setAuthMode('login');$('signupTab').onclick=()=>setAuthMode('signup');
-$('authForm').onsubmit=async e=>{e.preventDefault();const mode=e.target.dataset.mode||'login',email=$('email').value.trim(),password=$('password').value;if(mode==='login'){if(!email||!password)return $('authMsg').innerHTML='<div class="error">Enter your email and password.</div>';if(!sb){cdAuthDependencyError();return}const btn=$('authSubmit');try{if(btn)btn.disabled=true;$('authMsg').innerHTML='<div class="notice">Signing in…</div>';const loginPromise=sb.auth.signInWithPassword({email,password});const r=await Promise.race([loginPromise,new Promise(resolve=>setTimeout(()=>resolve({error:new Error('Sign-in request timed out. Please check your internet connection and try again.')}),20000))]);if(r.error)throw r.error;const sessionUser=r.data?.user;if(!sessionUser)throw new Error('Sign-in succeeded but no user session was returned. Please try again.');currentUser=sessionUser;await enterApp();}catch(err){console.error('CargoDek sign-in failed',err);$('appView')?.classList.add('hidden');$('authView')?.classList.remove('hidden');$('authMsg').innerHTML=`<div class="error"><b>Sign-in could not finish.</b><br>${esc(err?.message||'Please try again.')}</div>`}finally{if(btn)btn.disabled=false}return;}const rolesSelected=[...document.querySelectorAll('input[name="signupRole"]:checked')].map(x=>x.value);if(!$('termsAgree').checked)return $('authMsg').innerHTML='<div class="error">Please accept the Terms & Conditions and safety disclaimer.</div>';if(!$('companyName').value.trim())return $('authMsg').innerHTML='<div class="error">Enter your company name.</div>';if(!rolesSelected.length)return $('authMsg').innerHTML='<div class="error">Select at least one business activity.</div>';const signupPromise=sb.auth.signUp({email,password,options:{data:{full_name:$('fullName').value.trim()}}});const r=await Promise.race([signupPromise,new Promise(resolve=>setTimeout(()=>resolve({error:new Error('Sign-up request timed out. Check your internet connection and Supabase Auth configuration, then try again.')}),20000))]);if(r.error)return $('authMsg').innerHTML=`<div class="error">${esc(r.error.message)}</div>`;localStorage.setItem('cd_pending_onboarding',JSON.stringify({company_name:$('companyName').value.trim(),registration_number:$('companyReg').value.trim(),country:$('companyCountry').value.trim(),representative_name:$('representativeName').value.trim(),roles:rolesSelected}));if(r.data.session){currentUser=r.data.user;await enterApp();}else $('authMsg').innerHTML='<div class="notice">Account created. Check your email to confirm your address, then sign in.</div>'};
+$('authForm').onsubmit=async e=>{
+ e.preventDefault();
+ const mode=e.target.dataset.mode||'login',email=$('email').value.trim(),password=$('password').value;
+ if(mode==='login'){
+  if(!email||!password){$('authMsg').innerHTML='<div class="error">Enter your email and password.</div>';return}
+  const btn=$('authSubmit');
+  const ctl=new AbortController();
+  const timer=setTimeout(()=>ctl.abort(),20000);
+  try{
+   if(btn)btn.disabled=true;
+   $('authMsg').innerHTML='<div class="notice">Connecting to CargoDek authentication…</div>';
+   const response=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY},
+    body:JSON.stringify({email,password}),
+    signal:ctl.signal
+   });
+   let body=null;
+   try{body=await response.json()}catch(_){}
+   if(!response.ok){
+    const message=body?.msg||body?.message||body?.error_description||body?.error||('Authentication service returned HTTP '+response.status);
+    throw new Error(message);
+   }
+   if(!body?.access_token||!body?.refresh_token||!body?.user){
+    throw new Error('Authentication service returned an incomplete session.');
+   }
+   if(sb?.auth?.setSession){
+    const sr=await sb.auth.setSession({access_token:body.access_token,refresh_token:body.refresh_token});
+    if(sr.error)throw sr.error;
+    currentUser=sr.data?.user||body.user;
+   }else{
+    const expiresAt=body.expires_at||(Math.floor(Date.now()/1000)+(body.expires_in||3600));
+    localStorage.setItem('sb-rmyswyzzotvznteyqyym-auth-token',JSON.stringify({
+      access_token:body.access_token,
+      refresh_token:body.refresh_token,
+      expires_in:body.expires_in||3600,
+      expires_at:expiresAt,
+      token_type:body.token_type||'bearer',
+      user:body.user
+    }));
+    currentUser=body.user;
+   }
+   $('authMsg').innerHTML='<div class="notice">Sign-in successful. Loading your CargoDek workspace…</div>';
+   await enterApp();
+  }catch(err){
+   console.error('CargoDek direct sign-in failed',err);
+   $('appView')?.classList.add('hidden');
+   $('authView')?.classList.remove('hidden');
+   const message=err?.name==='AbortError'
+    ?'The authentication server did not respond within 20 seconds.'
+    :String(err?.message||'Authentication failed.');
+   $('authMsg').innerHTML='<div class="error"><b>Sign-in failed.</b><br>'+esc(message)+'<br><small>If your email and password are correct, this message identifies the actual connection/authentication failure instead of silently returning to the login screen.</small></div>';
+  }finally{
+   clearTimeout(timer);
+   if(btn)btn.disabled=false;
+  }
+  return;
+ }
+ const rolesSelected=[...document.querySelectorAll('input[name="signupRole"]:checked')].map(x=>x.value);
+ if(!sb){cdAuthDependencyError();return}
+ if(!$('termsAgree').checked)return $('authMsg').innerHTML='<div class="error">Please accept the Terms & Conditions and safety disclaimer.</div>';
+ if(!$('companyName').value.trim())return $('authMsg').innerHTML='<div class="error">Enter your company name.</div>';
+ if(!rolesSelected.length)return $('authMsg').innerHTML='<div class="error">Select at least one business activity.</div>';
+ try{
+  const signupPromise=sb.auth.signUp({email,password,options:{data:{full_name:$('fullName').value.trim()}}});
+  const r=await Promise.race([signupPromise,new Promise(resolve=>setTimeout(()=>resolve({error:new Error('Sign-up request timed out. Check your internet connection and Supabase Auth configuration, then try again.')}),20000))]);
+  if(r.error)return $('authMsg').innerHTML='<div class="error">'+esc(r.error.message)+'</div>';
+  localStorage.setItem('cd_pending_onboarding',JSON.stringify({company_name:$('companyName').value.trim(),registration_number:$('companyReg').value.trim(),country:$('companyCountry').value.trim(),representative_name:$('representativeName').value.trim(),roles:rolesSelected}));
+  if(r.data.session){currentUser=r.data.user;await enterApp()}else $('authMsg').innerHTML='<div class="notice">Account created. Check your email to confirm your address, then sign in.</div>';
+ }catch(err){console.error('CargoDek sign-up failed',err);$('authMsg').innerHTML='<div class="error">'+esc(err?.message||'Sign-up failed.')+'</div>'}
+};
 async function requestPasswordReset(){const email=$('email').value.trim();if(!email)return $('authMsg').innerHTML='<div class="error">Enter your email address first.</div>';try{const redirect=getAppUrl();const r=await sb.auth.resetPasswordForEmail(email,redirect?{redirectTo:redirect}:undefined);if(r.error)throw r.error;$('authMsg').innerHTML='<div class="notice">Password reset instructions have been sent to your email.</div>'}catch(err){console.error('Password reset failed',err);$('authMsg').innerHTML=`<div class="error">${esc(err?.message||'Password reset could not be requested.')}</div>`}}
 $('forgotPasswordBtn')?.addEventListener('click',requestPasswordReset);
 async function signOut(){await sb.auth.signOut()}
