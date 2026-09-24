@@ -1,6 +1,6 @@
 {
-  "buildCommand": "node scripts/validate-frontend.js",
-  "outputDirectory": ".",
+  "buildCommand": "node scripts/validate-frontend.js && mkdir -p public && cp index.html public/index.html",
+  "outputDirectory": "public",
   "headers": [
     {
       "source": "/(.*)",
