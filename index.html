@@ -1352,6 +1352,46 @@ function ensurePhase2UI(){populateCountrySelects();const f=$('loadForm');if(f&&!
 </script>
 
 
+<script>
+/* CargoDek auth hard-fallback: independent of the main Supabase JS handler. */
+(function(){
+ const LEGACY_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJteXN3eXp6b3R2em50ZXlxeXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NzMyODgsImV4cCI6MjEwNDQ0OTI4OH0.-Q5dcRpCWrd0GxLFCL4WEkhKFmauy3alfcHs6Ok6hrA';
+ function msg(html){const el=document.getElementById('authMsg');if(el)el.innerHTML=html}
+ function esc2(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+ window.addEventListener('error',e=>{if(document.getElementById('authView')&&!document.getElementById('authView').classList.contains('hidden')){msg('<div class="error"><b>CargoDek encountered a browser error.</b><br>'+esc2(e.message||'JavaScript error')+'<br><small>Line '+esc2(e.lineno||'?')+'.</small></div>')}});
+ window.addEventListener('unhandledrejection',e=>{if(document.getElementById('authView')&&!document.getElementById('authView').classList.contains('hidden')){msg('<div class="error"><b>CargoDek encountered an authentication startup error.</b><br>'+esc2(e.reason?.message||e.reason||'Unhandled promise rejection')+'</div>')}});
+ async function rawLogin(e){
+  e.preventDefault(); e.stopImmediatePropagation();
+  const email=(document.getElementById('email')?.value||'').trim(), password=document.getElementById('password')?.value||'', btn=document.getElementById('authSubmit');
+  if(!email||!password){msg('<div class="error">Enter your email and password.</div>');return}
+  if(btn)btn.disabled=true; msg('<div class="notice">Testing the CargoDek authentication connection…</div>');
+  const keys=[SUPABASE_KEY,LEGACY_ANON].filter((v,i,a)=>v&&a.indexOf(v)===i); let last='';
+  try{
+   for(const key of keys){
+    const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),15000);
+    try{
+     const r=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json','apikey':key},body:JSON.stringify({email,password}),signal:ctl.signal,cache:'no-store'});
+     let b=null;try{b=await r.json()}catch(_){ }
+     if(r.ok&&b?.access_token&&b?.refresh_token&&b?.user){
+      if(window.sb?.auth?.setSession){const sr=await window.sb.auth.setSession({access_token:b.access_token,refresh_token:b.refresh_token});if(sr.error)throw sr.error}
+      else localStorage.setItem('sb-rmyswyzzotvznteyqyym-auth-token',JSON.stringify({access_token:b.access_token,refresh_token:b.refresh_token,expires_in:b.expires_in||3600,expires_at:b.expires_at||(Math.floor(Date.now()/1000)+(b.expires_in||3600)),token_type:b.token_type||'bearer',user:b.user}));
+      window.currentUser=b.user;
+      msg('<div class="notice">Authentication succeeded. Opening your workspace…</div>');
+      if(typeof window.enterApp==='function') await window.enterApp(); else location.reload();
+      return;
+     }
+     last=b?.msg||b?.message||b?.error_description||b?.error||('HTTP '+r.status);
+    }catch(err){last=err?.name==='AbortError'?'Authentication request timed out after 15 seconds.':(err?.message||String(err))}
+    finally{clearTimeout(timer)}
+   }
+   msg('<div class="error"><b>Sign-in failed.</b><br>'+esc2(last||'The authentication service rejected the request.')+'<br><small>This is the direct Supabase response. Your password was not stored or sent anywhere except Supabase Auth.</small></div>');
+  }finally{if(btn)btn.disabled=false}
+ }
+ function bind(){const form=document.getElementById('authForm');if(!form||form.dataset.cdHardFallback)return;form.dataset.cdHardFallback='1';form.addEventListener('submit',rawLogin,true)}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+
 <!-- CargoDek syntax-validation-trigger -->
 </body></html>
 x
