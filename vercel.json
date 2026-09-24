@@ -1,5 +1,6 @@
 {
   "buildCommand": "node scripts/validate-frontend.js",
+  "outputDirectory": ".",
   "headers": [
     {
       "source": "/(.*)",
