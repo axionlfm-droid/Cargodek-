@@ -197,8 +197,59 @@ aside .nav{color:#c6d4e4;padding:12px 14px;border-radius:10px;margin-bottom:5px}
     </div>
     <div class="field"><label>Email</label><input id="email" type="email" required autocomplete="email"></div>
     <div class="field"><label>Password</label><input id="password" type="password" required minlength="6" autocomplete="current-password"></div><button type="button" class="btn secondary" id="forgotPasswordBtn">Forgot password?</button>
-    <button id="authSubmit" class="btn primary" style="width:100%">Sign in</button>
+    <button id="authSubmit" type="button" class="btn primary" style="width:100%">Sign in</button>
   </form>
+<script>
+/* CargoDek isolated login: deliberately independent of the application bootstrap. */
+(function(){
+  const URL_='https://rmyswyzzotvznteyqyym.supabase.co';
+  const KEY_='sb_publishable_ln65f8S6tczPyivpLDUDZg_bKXOtenH';
+  const LEGACY_='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJteXN3eXp6b3R2em50ZXlxeXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NzMyODgsImV4cCI6MjEwNDQ0OTI4OH0.-Q5dcRpCWrd0GxLFCL4WEkhKFmauy3alfcHs6Ok6hrA';
+  const esc_=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
+  const msg_=v=>{const x=document.getElementById('authMsg');if(x)x.innerHTML=v};
+  async function login_(ev){
+    if(ev){ev.preventDefault();ev.stopPropagation();}
+    const email=(document.getElementById('email')?.value||'').trim();
+    const password=document.getElementById('password')?.value||'';
+    const btn=document.getElementById('authSubmit');
+    if(!email||!password){msg_('<div class="error">Enter your email and password.</div>');return;}
+    btn.disabled=true;
+    msg_('<div class="notice">Signing in securely…</div>');
+    let last='';
+    for(const key of [KEY_,LEGACY_]){
+      const ctl=new AbortController();
+      const timer=setTimeout(()=>ctl.abort(),15000);
+      try{
+        const r=await fetch(URL_+'/auth/v1/token?grant_type=password',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+key},
+          body:JSON.stringify({email,password}),
+          cache:'no-store',signal:ctl.signal
+        });
+        let b={};try{b=await r.json()}catch(_){}
+        if(r.ok&&b.access_token&&b.refresh_token&&b.user){
+          localStorage.setItem('sb-rmyswyzzotvznteyqyym-auth-token',JSON.stringify({
+            access_token:b.access_token,refresh_token:b.refresh_token,
+            expires_in:b.expires_in||3600,
+            expires_at:b.expires_at||(Math.floor(Date.now()/1000)+(b.expires_in||3600)),
+            token_type:b.token_type||'bearer',user:b.user
+          }));
+          msg_('<div class="notice">Sign-in successful. Opening CargoDek…</div>');
+          window.location.reload();
+          return;
+        }
+        last=b.msg||b.message||b.error_description||b.error||('HTTP '+r.status);
+      }catch(e){
+        last=e.name==='AbortError'?'Authentication request timed out after 15 seconds.':(e.message||String(e));
+      }finally{clearTimeout(timer);}
+    }
+    msg_('<div class="error"><b>Sign-in failed.</b><br>'+esc_(last||'The authentication request was rejected.')+'</div>');
+    btn.disabled=false;
+  }
+  const btn=document.getElementById('authSubmit');
+  if(btn)btn.addEventListener('click',login_,false);
+})();
+</script>
 </div></div>
 
 <div id="appView" class="hidden">
